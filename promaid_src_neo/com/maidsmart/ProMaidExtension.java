@@ -334,6 +334,8 @@ net.minecraft.server.MinecraftServer server = event.getServer();
         com.maidsmart.command.MaidArmyCommand.register(event.getDispatcher());
         // v1.2.0 实测五百五十五：客户端重同步（修"服务端活着、客户端连实体都没有"）
         com.maidsmart.command.MaidResyncCommand.register(event.getDispatcher());
+        // v1.2.2 实测五百八十七：鞘翅赶路手动触发（/maid_smart elytra_goto）
+        com.maidsmart.command.MaidElytraGotoCommand.register(event.getDispatcher());
     }
 
     /**
@@ -578,6 +580,15 @@ net.minecraft.server.MinecraftServer server = event.getServer();
                         Pair.of(190, new com.maidsmart.combat.MaidAidOwnerBehavior()),
                         Pair.of(185, new com.maidsmart.combat.MaidTorchPlacerBehavior()),
                         Pair.of(180, new com.maidsmart.combat.MaidShieldShareBehavior()),
+                        // v1.2.2 实测五百八十七：鞘翅赶路（非战斗常态跨地形跟随）。
+                        // 【优先级】数值 **1**——子代理对 vanilla Brain 字节码的实证：
+                        // startEachNonRunningBehavior 走 availableBehaviorsByPriority（TreeMap）
+                        // **升序**遍历，**数值小的先跑**（本文件里"250 > 99"那套注释是反的；
+                        // 真实惯例：0=core、3=TLM 跟随、5=攻击、20=随机走动、99=日程）。
+                        // 放 1 = 排在 TLM 跟随（3）与散步（50）之前，起飞那一 tick 的操纵
+                        // 不会被它们的走路目标覆盖；同级只有本行为，不存在同值抢位。
+                        // 互斥靠行为内部自判（空袭任务/骑乘/水/岩浆/守家/威胁），不靠优先级。
+                        Pair.of(1, new com.maidsmart.follow.ElytraTravelBehavior()),
                         // v1.1.0 实测一百八十三：空闲散步（反馈："增加女仆散步的频率和速度"）
                         //——低于 TLM core 最高 99 与上面全部行为，只在真正空闲时生效
                         Pair.of(50, new com.maidsmart.task.MaidStrollBehavior()),

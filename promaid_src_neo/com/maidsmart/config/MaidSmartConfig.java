@@ -704,6 +704,21 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
     public static final ModConfigSpec.BooleanValue MISC_MAID_RESCUE;
     // v1.1.0 实测一百五十一：跟随收紧（每 tick 重断言跟随目标，平常跟随在 4 格内）
     public static final ModConfigSpec.BooleanValue MISC_FOLLOW_TIGHTEN;
+
+    /* ---------------- v1.2.2 实测五百八十七：鞘翅赶路（非战斗常态下的跨地形跟随） ---------------- */
+
+    /** 鞘翅赶路总开关（默认开）：主人跑远、TLM 正要瞬移时，改成让她穿鞘翅飞过去 */
+    public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL;
+    /** 赶路时允许放烟花推进（默认开）：1 枚烟花约 2 秒推力，比法术稳也更像玩家 */
+    public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_FIREWORK;
+    /** 没烟花时允许用「提供高度」的位移法术推进（默认开）：共用空袭那张表 */
+    public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_SPELL;
+    /** 背包/手里的鞘翅自动穿上（默认开）：穿在胸甲槽才滑得起来 */
+    public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_AUTO_EQUIP;
+    /** 一次赶路最长秒数（默认 30）：超时立刻收鞘翅、恢复瞬移，不会卡在半路 */
+    public static final ModConfigSpec.IntValue MISC_ELYTRA_TRAVEL_MAX_SECONDS;
+    /** 落地后的防抖冷却（tick，默认 60 = 3 秒）：刚落地又被甩开时不再立刻起飞 */
+    public static final ModConfigSpec.IntValue MISC_ELYTRA_TRAVEL_COOLDOWN;
     // v1.1.0 实测一百五十二：有增益也喂牛奶（很多装备/饰品带永久增益，旧版"无增益才喝"导致中毒/凋零也不解）
     public static final ModConfigSpec.BooleanValue MISC_MILK_FEED_WITH_BUFF;
     /** v1.1.0 实测八十九：寻路危险方块避让（女仆寻路绕开岩浆/火等） */
@@ -1954,6 +1969,20 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
         MISC_MAID_SAME_DIM_VERTICAL = BUILDER.comment("Y 轴拉回门槛（格，默认 16）：女仆与主人同维度、水平距离没超上一条阈值但【垂直高度差】超过本值时——若主人旁边 16 格内有安全落点（findStand）就传送过来；没有安全落点则不传（等有落点/再试）。旧版只有 48 格 3D 距离阈值，水平贴身、竖直搭高 30 格的女仆永远不触发（骑到你头顶挂机）；守家/坐姿/骑乘/干活中同样不拉")
                 .translation("config.promaid.misc.maidSameDimVertical").defineInRange("maidSameDimVertical", 16, 4, 128);
         // v1.1.0 实测一百五十一：跟随收紧（参考改版 TLM jar——每 tick 重断言跟随目标）
+        MISC_ELYTRA_TRAVEL = BUILDER.comment("鞘翅赶路（默认开）：非战斗常态下，主人跑远、TLM 正要瞬移时，改成让她穿鞘翅滑翔过去——她本来只有瞬移跟随和搭路，整合包里玩家自己有一堆跨地形手段，观感割裂；空岛型维度（末地外岛、天境之类）尤其明显。\n\n触发口径：只在 TLM 本来就要瞬移的那一刻起飞（离主人 > 工作范围半径 + 2，与她的原版阈值完全一致），所以平地近距离跟随的手感一字不变。\n\n兜底：超时 / 燃料耗尽 / 落水进岩浆 / 撞地形没进展 / 目标丢失 → 立刻收鞘翅并恢复瞬移——宁可瞬移，绝不把她卡在半路。")
+                .translation("config.promaid.misc.elytraTravel").define("elytraTravel", true);
+        MISC_ELYTRA_TRAVEL_FIREWORK = BUILDER.comment("鞘翅赶路·用烟花推进（默认开）：放的是无爆炸星的「挂载型」烟花（不会把自己炸伤），消耗玩家给她的真烟花 1 枚；关掉则只靠位移法术推进（没烟花时飞得矮一些）")
+                .translation("config.promaid.misc.elytraTravelFirework").define("elytraTravelFirework", true);
+        MISC_ELYTRA_TRAVEL_SPELL = BUILDER.comment("鞘翅赶路·没烟花时用位移法术推进（默认开）：共用空袭的「提供高度」法术表（默认升腾 + 烈焰冲锋），口径同上（不看法术自身冷却）；关掉则没烟花时她只能滑翔下降，赶不了长距离")
+                .translation("config.promaid.misc.elytraTravelSpell").define("elytraTravelSpell", true);
+        MISC_ELYTRA_TRAVEL_AUTO_EQUIP = BUILDER.comment("鞘翅赶路·自动穿鞘翅（默认开）：鞘翅放在背包/手里时自动穿到胸甲槽（滑翔只认胸甲槽的鞘翅）；关掉则要求她已经穿好鞘翅才赶路")
+                .translation("config.promaid.misc.elytraTravelAutoEquip").define("elytraTravelAutoEquip", true);
+        MISC_ELYTRA_TRAVEL_MAX_SECONDS = BUILDER.comment("鞘翅赶路·单次最长秒数（默认 30）：超时立刻收鞘翅、交还瞬移；调大能追更远的距离，但万一撞地形会多耗一会儿")
+                .translation("config.promaid.misc.elytraTravelMaxSeconds")
+                .defineInRange("elytraTravelMaxSeconds", 30, 5, 300);
+        MISC_ELYTRA_TRAVEL_COOLDOWN = BUILDER.comment("鞘翅赶路·落地后防抖（tick，默认 60 = 3 秒）：这段时间内不再起飞（刚落地主人又跑开时，先跟着走两步再说），避免频繁起降抖动")
+                .translation("config.promaid.misc.elytraTravelCooldown")
+                .defineInRange("elytraTravelCooldown", 60, 0, 1200);
         MISC_FOLLOW_TIGHTEN = BUILDER.comment("跟随收紧（默认开，参考改版 TLM jar 设计）：跟随模式的女仆每 tick 重新断言跟随目标——平常跟随在 4 格以内，被其他行为/寻路刹车干扰走远时立即拉回，不再走走停停/乱跑；关闭 = 官方 1.5.3 原版行为（只在跟随行为启动时设一次目标）")
                 .translation("config.promaid.misc.followTighten").define("followTighten", true);
         // v1.1.0 实测一百五十二：有增益也喂牛奶（装备/饰品永久增益不再阻止解负面）

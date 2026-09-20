@@ -2863,6 +2863,19 @@ public void render(GuiGraphics g, int index, int top, int left, int width, int h
         // v1.1.0 实测一百五十一：跟随收紧（参考改版 TLM jar——每 tick 重断言跟随目标）
         this.rows.add(new BoolRow("跟随收紧", MaidSmartConfig.MISC_FOLLOW_TIGHTEN.get(),
                 v -> MaidSmartConfig.MISC_FOLLOW_TIGHTEN.set(v), "跟随模式的女仆每 tick 重新断言跟随目标——平常跟随在 4 格以内，被其他行为/寻路刹车干扰走远时立即拉回，不再走走停停/乱跑（参考改版 TLM jar 的每 tick 驱动设计；关闭 = 官方 1.5.3 原版行为）"));
+        // v1.2.2 实测五百八十七：鞘翅赶路（非战斗常态下用鞘翅跨地形跟随）
+        this.rows.add(new BoolRow("鞘翅赶路", MaidSmartConfig.MISC_ELYTRA_TRAVEL.get(),
+                v -> MaidSmartConfig.MISC_ELYTRA_TRAVEL.set(v), "主人跑远、原本要被瞬移过去时，改成让她穿鞘翅飞过去（触发点就是 TLM 自己的瞬移阈值「工作范围半径 − 2 + 4」，所以近距离跟随手感不变）。兜底：超时 / 燃料耗尽 / 落水进岩浆 / 撞地形没进展 → 立刻收鞘翅恢复瞬移，不会把她卡在半路"));
+        this.rows.add(new BoolRow("鞘翅赶路·用烟花推进", MaidSmartConfig.MISC_ELYTRA_TRAVEL_FIREWORK.get(),
+                v -> MaidSmartConfig.MISC_ELYTRA_TRAVEL_FIREWORK.set(v), "放的是无爆炸星的「挂载型」烟花（不会炸伤只有 20 血的她），消耗玩家给的真烟花 1 枚 ≈ 2 秒推力；关掉则只靠位移法术推进（没烟花时飞得矮）"));
+        this.rows.add(new BoolRow("鞘翅赶路·没烟花用位移法术", MaidSmartConfig.MISC_ELYTRA_TRAVEL_SPELL.get(),
+                v -> MaidSmartConfig.MISC_ELYTRA_TRAVEL_SPELL.set(v), "共用空袭的「提供高度」法术表（默认升腾 + 烈焰冲锋），口径与空袭一致（不看法术自身冷却）；关掉则没烟花时她只能滑翔下降，赶不了长距离"));
+        this.rows.add(new BoolRow("鞘翅赶路·自动穿鞘翅", MaidSmartConfig.MISC_ELYTRA_TRAVEL_AUTO_EQUIP.get(),
+                v -> MaidSmartConfig.MISC_ELYTRA_TRAVEL_AUTO_EQUIP.set(v), "鞘翅放在背包/手里时自动穿到胸甲槽（滑翔只认胸甲槽的鞘翅）；关掉则要求她已经穿好鞘翅才赶路"));
+        this.rows.add(new NumRow("鞘翅赶路·单次最长秒数", String.valueOf(MaidSmartConfig.MISC_ELYTRA_TRAVEL_MAX_SECONDS.get()),
+                s -> setInt(MaidSmartConfig.MISC_ELYTRA_TRAVEL_MAX_SECONDS, s), "默认 30 秒。超时立刻收鞘翅、交还瞬移；调大能追更远，代价是万一撞地形会多耗一会儿"));
+        this.rows.add(new NumRow("鞘翅赶路·落地防抖（tick）", String.valueOf(MaidSmartConfig.MISC_ELYTRA_TRAVEL_COOLDOWN.get()),
+                s -> setInt(MaidSmartConfig.MISC_ELYTRA_TRAVEL_COOLDOWN, s), "默认 60（3 秒）：这段时间内不再起飞（刚落地主人又跑开时先跟着走两步），避免频繁起降抖动"));
         this.rows.add(new NumRow("同维度拉回距离（格）", String.valueOf(MaidSmartConfig.MISC_MAID_SAME_DIM_DIST.get()),
                 s -> setInt(MaidSmartConfig.MISC_MAID_SAME_DIM_DIST, s), "女仆与主人同维度且距离超过此值才拉回（默认 48 格）：低于此值靠走路/跟随，不打扰她"));
         // v1.1.0 实测一百八十八：Y 轴拉回门槛（反馈："传送机制不检测 Y 轴"）

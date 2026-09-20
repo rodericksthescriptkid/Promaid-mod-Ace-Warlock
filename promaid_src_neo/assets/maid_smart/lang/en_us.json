@@ -114,5 +114,11 @@
   "config.promaid.airRaid.dashBoostMinRange": "Dash Boost Min Range",
   "config.promaid.airRaid.dashBoostMaxRange": "Dash Boost Max Range",
   "config.promaid.misc.workPosMarker": "Middle-Click Work Marker (sneak + middle-click)",
-  "config.promaid.combat.aidDrinkMinPurity": "Min Water Purity to Feed (0-3, 2=Acceptable)"
+  "config.promaid.combat.aidDrinkMinPurity": "Min Water Purity to Feed (0-3, 2=Acceptable)",
+  "config.promaid.misc.elytraTravel": "Elytra Travel (Non-combat Terrain Crossing)",
+  "config.promaid.misc.elytraTravelFirework": "Elytra Travel: Use Fireworks",
+  "config.promaid.misc.elytraTravelSpell": "Elytra Travel: Use Dash Spells Without Fireworks",
+  "config.promaid.misc.elytraTravelAutoEquip": "Elytra Travel: Auto-equip Elytra",
+  "config.promaid.misc.elytraTravelMaxSeconds": "Elytra Travel: Max Seconds per Trip",
+  "config.promaid.misc.elytraTravelCooldown": "Elytra Travel: Cooldown after Landing (ticks)"
 }

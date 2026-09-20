@@ -248,5 +248,11 @@
   "config.promaid.airRaid.dashBoostMinRange": "冲刺最小距离（格）",
   "config.promaid.airRaid.dashBoostMaxRange": "冲刺最大距离（格）",
   "config.promaid.misc.workPosMarker": "中键工位标记（潜行+中键）",
-  "config.promaid.combat.aidDrinkMinPurity": "喂水最低水质（0-3，2=可接受的）"
+  "config.promaid.combat.aidDrinkMinPurity": "喂水最低水质（0-3，2=可接受的）",
+  "config.promaid.misc.elytraTravel": "鞘翅赶路（非战斗跨地形跟随）",
+  "config.promaid.misc.elytraTravelFirework": "鞘翅赶路·用烟花推进",
+  "config.promaid.misc.elytraTravelSpell": "鞘翅赶路·没烟花时用位移法术推进",
+  "config.promaid.misc.elytraTravelAutoEquip": "鞘翅赶路·自动穿鞘翅",
+  "config.promaid.misc.elytraTravelMaxSeconds": "鞘翅赶路·单次最长秒数",
+  "config.promaid.misc.elytraTravelCooldown": "鞘翅赶路·落地后防抖（tick）"
 }

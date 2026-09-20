@@ -50,6 +50,14 @@ public abstract class MaidTeleportPreserveMixin {
                 cir.setReturnValue(false);
                 return;
             }
+            // v1.2.2 实测五百八十七【鞘翅赶路】：够资格飞的，把这次瞬移换成"飞过去"。
+            // 判定/请求/兜底都在 ElytraTravel 里（挂起请求超时 3 秒没人消费就自动放弃拦截，
+            // 所以不会出现"瞬移被拦了、她又不飞"把她卡住的情况）；飞完/超时/掉燃料 → 会话
+            // 结束，下一 tick 这里返回 false，瞬移立刻恢复正常。
+            if (com.maidsmart.follow.ElytraTravel.interceptTeleport(maid)) {
+                cir.setReturnValue(false);
+                return;
+            }
             // v1.1.0 实测三百一十五（反馈："怀疑是老代码作祟"——基岩层传送问题复查）：
             // 坐垫/骑乘/蹲下豁免——TLM 原版 teleportToOwner（离主人过远自动传送）只被
             // 自保/建造/搭路拦截，坐垫/骑乘/蹲下的女仆仍会被拉走。反馈"蹲下、坐垫全都
