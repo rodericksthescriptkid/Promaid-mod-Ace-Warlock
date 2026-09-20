@@ -351,7 +351,8 @@ public final class MaidSpellCastCompat {
     private static Method mSpellGetCooldown;
 
     /**
-     * 某个法术**自身**的冷却（换算成 tick）——读 ISS 的 `AbstractSpell#getSpellCooldown()`（秒）。
+     * 某个法术**自身**的冷却（**已经是 tick**）——读 ISS 的 `AbstractSpell#getSpellCooldown()`
+     * （该方法内部已把「秒」换成 tick，见方法体内的 `* 20`）。
      *
      * 【为什么要它】"提供速度/提供高度"这两类法术在原版都是有冷却的输出手段（烈焰冲锋 10 秒、
      * 升腾 15 秒）；写回冷却时若只按我们的间隔（默认 2 秒）写，等于让她比玩家频繁好几倍。
@@ -373,9 +374,15 @@ public final class MaidSpellCastCompat {
             if (spell == null) {
                 return 0;
             }
-            Object seconds = mSpellGetCooldown.invoke(spell);
-            if (seconds instanceof Integer i) {
-                return Math.max(0, i) * 20;
+            // 【单位（实测五百八十八 修正）】`AbstractSpell#getSpellCooldown()` 返回的**已经是 tick**：
+            // ISS 源码 `getSpellCooldown() { return (int) (SpellConfigManager.getSpellConfigValue(
+            // this, SpellConfigParameter.COOLDOWN_IN_SECONDS) * 20); }`——旧实现又乘了一次 20，
+            // 写回去的冷却整整大 20 倍（烈焰冲锋 10 秒 → 4000 tick = 200 秒）。
+            // 症状：空袭「提供速度」那一类法术第一次放过之后，200 秒内再也不放
+            //（实测日志：`用位移法术推进：irons_spellbooks:burning_dash Lv1（每 4000 tick 一记…）`）。
+            Object ticks = mSpellGetCooldown.invoke(spell);
+            if (ticks instanceof Integer i) {
+                return Math.max(0, i);
             }
             return 0;
         } catch (Throwable ignored) {
