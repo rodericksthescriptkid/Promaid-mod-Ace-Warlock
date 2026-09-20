@@ -410,7 +410,6 @@ public class MaidFlightCombatBehavior extends Behavior<EntityMaid> {
         }
         LivingEntity target = currentTarget(maid);
         if (target == null) {
-            return false;
         }
         if (target instanceof Player p && (p.isSpectator() || p.getAbilities().instabuild)) {
             return false;
@@ -547,6 +546,18 @@ public class MaidFlightCombatBehavior extends Behavior<EntityMaid> {
         MAX_Y.merge(id, maid.getY(), Math::max);
         LivingEntity target = currentTarget(maid);
         if (target == null) {
+            // v1.2.2 实测五百八十八【没敌人时改成鞘翅跟随】：以前这里是"直接滑降收尾、落地站着"，
+            // 于是空袭任务的女仆在主人跑远时只会原地待命（反馈："能不能设置空袭模式附近未侦测到
+            // 可以抵达的敌人时允许继续飞行跟随？"）。现在把飞行交给「鞘翅赶路」那一套：
+            // 有主人 + 她在空袭任务里但确实没敌人 + 装备齐 + 主人离得够远 → 挂请求，由
+            // ElytraTravelBehavior 用滑翔跟过去；一旦出现敌人，赶路那边会立刻收工（见其 tick 的兜底），
+            // 本行为随即可用。
+            if (com.maidsmart.follow.ElytraTravel.isTraveling(maid)) {
+                return; // 赶路逻辑正在接管飞行，别插手（更别做滑降收尾把它掐掉）
+            }
+            if (com.maidsmart.follow.ElytraTravel.requestOwnerFollow(maid)) {
+                return; // 请求已挂上，下一 tick 由赶路行为起飞
+            }
             // v1.2.0 实测四百七十二【摔死主因】：目标一没就无条件清滑翔位 —— 她多半
             // 正在高空（烟花推进的必然结果），清位即自由落体，20 血必死。改为
             // 空中保留滑翔自然下降，落地由原版清位（见 endFlightSafely）。

@@ -41,8 +41,18 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
 
     /** 一次烟花推进后，多久内不再放（1 枚烟花自己能烧约 2 秒） */
     private static final int FIREWORK_INTERVAL = 30;
-    /** 没进展判定的窗口：这么久距离没缩短 1 格以上，判定为撞地形/被挡住 */
-    private static final int STALL_WINDOW = 100;
+    /** 每个会话只记一次"用哪个法术推进"的日志 */
+    private static final java.util.Set<java.util.UUID> FIRST_CAST_LOGGED = new java.util.HashSet<>();
+    /** 法术推进的节流表：UUID → 下一次可施法的 gameTime（实测五百八十八：没有它会每 tick 连放） */
+    private static final java.util.Map<java.util.UUID, Long> SPELL_READY = new java.util.HashMap<>();
+    /**
+     * 没进展判定的窗口：这么久距离没缩短 1 格以上，判定为撞地形/被挡住。
+     *
+     * 【为什么是 200 而不是 100（实测五百八十八）】位移法术的推进节奏由它自己的冷却决定
+     * （升腾 15 秒、烈焰冲锋 10 秒 = 200~300 tick）。窗口取 100 时，第二次施法还没到，
+     * 她就被判定"没进展"收工了——看上去像"法术推进没生效"。
+     */
+    private static final int STALL_WINDOW = 200;
     /** 结会话的原因（stop 里兜底用） */
     private final ThreadLocal<String> endReason = new ThreadLocal<>();
 
@@ -122,6 +132,11 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
             double dist = maid.position().distanceTo(aim);
             if (dist <= ElytraTravel.LAND_DISTANCE) {
                 bail(maid, "已到主人身边");
+                return;
+            }
+            // ── 兜底三·五：出现敌人 —— 立刻把飞行交还空袭（别背对敌人赶路） ──
+            if (ElytraTravel.hasEnemy(maid)) {
+                bail(maid, "出现敌人，切回战斗");
                 return;
             }
             // ── 兜底四：燃料耗尽（烟花 + 位移法术都没了）→ 滑翔降落，交给跟随/瞬移收尾 ──
@@ -300,7 +315,12 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
      */
     private boolean spellThrust(EntityMaid maid, long gameTime) {
         try {
+            long ready = SPELL_READY.getOrDefault(maid.getUUID(), 0L);
+            if (gameTime < ready) {
+                return false;
+            }
             String[] ids = MaidSmartConfig.COMBAT_FLIGHT_DASH_CLIMB_SPELLS.get().toArray(new String[0]);
+            MaidSpellCastCompat.warnUnknownSpellIds(ids);   // id 写错时报一次（否则表现只是"第一个法术永不生效"）
             String spell = MaidSpellCastCompat.findClimbSpellIgnoringCooldown(maid, ids);
             if (spell == null) {
                 return false;
@@ -309,10 +329,30 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
             if (lvl <= 0) {
                 lvl = MaidSpellCastCompat.DASH_SPELL_FALLBACK_LEVEL;
             }
-            int cd = Math.max(20, MaidSmartConfig.COMBAT_FLIGHT_DASH_INTERVAL.get());
+            // 【节流（实测五百八十八 修）】原来这里只把冷却"写回"给她、挑法术时又刻意不看冷却，
+            // 于是每 tick 都能中一记：升腾（纯 Y 轴冲量）几秒就把她顶到云上，烈焰冲锋则让她
+            // 一直摆站着施法的动画、盖掉作者给鞘翅滑翔指定的游泳姿势。现在按"最小间隔 + （默认）
+            // 法术自身冷却"取大者节流；间隔取不到法术自身冷却时，用空袭位移间隔兜底。
+            int interval = 0;
+            try {
+                interval = Math.max(10, MaidSmartConfig.MISC_ELYTRA_TRAVEL_SPELL_INTERVAL.get());
+                if (MaidSmartConfig.MISC_ELYTRA_TRAVEL_SPELL_RESPECT_COOLDOWN.get()) {
+                    interval = Math.max(interval, MaidSpellCastCompat.spellCooldownTicks(spell));
+                }
+            } catch (Throwable ignored) {
+            }
+            if (interval <= 0) {
+                interval = Math.max(20, MaidSmartConfig.COMBAT_FLIGHT_DASH_INTERVAL.get());
+            }
             MaidSpellCastCompat.clearCastTarget(maid);
-            if (!MaidSpellCastCompat.castSpecific(maid, spell, lvl, cd)) {
+            if (!MaidSpellCastCompat.castSpecific(maid, spell, lvl, interval)) {
                 return false;
+            }
+            SPELL_READY.put(maid.getUUID(), gameTime + interval);
+            if (!FIRST_CAST_LOGGED.contains(maid.getUUID())) {
+                FIRST_CAST_LOGGED.add(maid.getUUID());
+                PromaidLog.log("鞘翅赶路", PromaidLog.nameOf(maid) + " 用位移法术推进：" + spell
+                        + " Lv" + lvl + "（每 " + interval + " tick 一记；法术表里排在前面的优先）");
             }
             return true;
         } catch (Throwable ignored) {

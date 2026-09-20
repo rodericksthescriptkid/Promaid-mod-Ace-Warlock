@@ -719,6 +719,12 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
     public static final ModConfigSpec.IntValue MISC_ELYTRA_TRAVEL_MAX_SECONDS;
     /** 落地后的防抖冷却（tick，默认 60 = 3 秒）：刚落地又被甩开时不再立刻起飞 */
     public static final ModConfigSpec.IntValue MISC_ELYTRA_TRAVEL_COOLDOWN;
+    /** 赶路时两次施法之间的最小间隔（tick，默认 40 = 2 秒） */
+    public static final ModConfigSpec.IntValue MISC_ELYTRA_TRAVEL_SPELL_INTERVAL;
+    /** 赶路施法是否尊重法术自身冷却（默认开） */
+    public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_SPELL_RESPECT_COOLDOWN;
+    /** 空袭模式下附近没有可抵达的敌人时，允许继续鞘翅跟随主人（默认开） */
+    public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_AIRRAID;
     // v1.1.0 实测一百五十二：有增益也喂牛奶（很多装备/饰品带永久增益，旧版"无增益才喝"导致中毒/凋零也不解）
     public static final ModConfigSpec.BooleanValue MISC_MILK_FEED_WITH_BUFF;
     /** v1.1.0 实测八十九：寻路危险方块避让（女仆寻路绕开岩浆/火等） */
@@ -1980,6 +1986,15 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
         MISC_ELYTRA_TRAVEL_MAX_SECONDS = BUILDER.comment("鞘翅赶路·单次最长秒数（默认 30）：超时立刻收鞘翅、交还瞬移；调大能追更远的距离，但万一撞地形会多耗一会儿")
                 .translation("config.promaid.misc.elytraTravelMaxSeconds")
                 .defineInRange("elytraTravelMaxSeconds", 30, 5, 300);
+        MISC_ELYTRA_TRAVEL_SPELL_INTERVAL = BUILDER.comment("鞘翅赶路·施法最小间隔（tick，默认 40 = 2 秒）：两次用位移法术推进之间的最小间隔。\n\n【为什么必须有】没有它时「法术推进」会**每 tick 连放**（实测五百八十八：用户反馈「赶路时 ascension / burning_dash 都没有 CD」，升腾是纯 Y 轴冲量，连放几秒就顶到云上去了；烈焰冲锋连放还会让她一直摆着站着施法的动画，盖掉作者给鞘翅滑翔指定的游泳姿势）。")
+                .translation("config.promaid.misc.elytraTravelSpellInterval")
+                .defineInRange("elytraTravelSpellInterval", 40, 10, 400);
+        MISC_ELYTRA_TRAVEL_SPELL_RESPECT_COOLDOWN = BUILDER.comment("鞘翅赶路·尊重法术自身冷却（默认开）：间隔取 max(上面的间隔, 法术自身冷却)——升腾 15 秒、烈焰冲锋 10 秒。\n\n【与空袭的口径差】空袭的起飞/补高**不**看冷却（那是「贴脸/落地前一口气」，且有空袭位移间隔兜着），但赶路是**长距离巡航**，按法术自己的冷却来才不会被玩家当成永动机（也就不会一直摆施法姿势）。关掉 = 赶路也只看上面的间隔。")
+                .translation("config.promaid.misc.elytraTravelSpellRespectCooldown")
+                .define("elytraTravelSpellRespectCooldown", true);
+        MISC_ELYTRA_TRAVEL_AIRRAID = BUILDER.comment("空袭模式·没敌人时鞘翅跟随（默认开）：空袭任务的女仆附近没有可抵达的敌人时，不再原地滑降站着，而是用鞘翅跟主人飞过去（由「鞘翅赶路」那套逻辑接管；一旦出现敌人立刻结束赶路、切回空袭）。要求她装备齐（鞘翅 + 烟花/位移法术）且主人离她够远，近距离时照旧落地待命。")
+                .translation("config.promaid.misc.elytraTravelAirraid")
+                .define("elytraTravelAirraid", true);
         MISC_ELYTRA_TRAVEL_COOLDOWN = BUILDER.comment("鞘翅赶路·落地后防抖（tick，默认 60 = 3 秒）：这段时间内不再起飞（刚落地主人又跑开时，先跟着走两步再说），避免频繁起降抖动")
                 .translation("config.promaid.misc.elytraTravelCooldown")
                 .defineInRange("elytraTravelCooldown", 60, 0, 1200);

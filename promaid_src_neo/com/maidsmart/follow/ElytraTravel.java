@@ -169,12 +169,20 @@ public final class ElytraTravel {
      * 「超过工作范围半径 + 2」的等价条件）。
      */
     public static boolean canTravel(EntityMaid maid) {
+        return canTravel(maid, false);
+    }
+
+    /**
+     * @param forIdleFlightTask true = 这一路是「空袭模式附近没敌人」发起的（她自己就在空袭任务里，
+     *                          不能因为"是飞行任务"就否掉；此时要求她**确实没有敌人**）
+     */
+    public static boolean canTravel(EntityMaid maid, boolean forIdleFlightTask) {
         if (maid == null || !maid.isAlive()) {
             return false;
         }
         try {
-            // 空袭模式自己会飞，别抢
-            if (MaidFlightKit.isFlightTask(maid)) {
+            // 空袭模式自己会飞——只有"空袭待机"那一路允许在飞行任务里赶路
+            if (MaidFlightKit.isFlightTask(maid) != forIdleFlightTask) {
                 return false;
             }
             // 停放/骑乘/睡觉/水/岩浆：不飞（水里滑翔没意义，岩浆是找死）
@@ -187,8 +195,7 @@ public final class ElytraTravel {
                 return false;
             }
             // 有攻击目标（挨打/追击中）：先打完再说，别背对敌人起飞
-            if (maid.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.ATTACK_TARGET)
-                    .isPresent()) {
+            if (hasEnemy(maid)) {
                 return false;
             }
             // 刚被谁打过（3 秒内）：同理让战斗/自保先处理
@@ -206,6 +213,61 @@ public final class ElytraTravel {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    /** 她手上有没有"要去打的敌人"（空袭待机判定与赶路豁免共用） */
+    public static boolean hasEnemy(EntityMaid maid) {
+        try {
+            if (maid.getBrain()
+                    .getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.ATTACK_TARGET)
+                    .isPresent()) {
+                return true;
+            }
+            return maid.getTarget() != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * v1.2.2 实测五百八十八：空袭模式**附近没有可抵达的敌人**时，改由鞘翅赶路跟主人飞过去。
+     *
+     * 由 {@code MaidFlightCombatBehavior} 在"目标为空"那一支调用；返回 true = 已经把飞行交给
+     * 赶路逻辑（它随后 return，不再做 endFlightSafely 的滑降收尾）。
+     *
+     * 距离门槛：用 TLM 那套阈值口径（工作范围半径 + 2）与 12 格取大者——主人就在旁边时照旧落地待命。
+     */
+    public static boolean requestOwnerFollow(EntityMaid maid) {
+        try {
+            if (!MaidSmartConfig.MISC_ELYTRA_TRAVEL.get()
+                    || !MaidSmartConfig.MISC_ELYTRA_TRAVEL_AIRRAID.get()) {
+                return false;
+            }
+            if (!canTravel(maid, true)) {
+                return false;
+            }
+            LivingEntity owner = maid.getOwner();
+            if (owner == null || !owner.isAlive() || maid.level() != owner.level()) {
+                return false;
+            }
+            double need = Math.max(12.0, maid.getRestrictRadius() + 2.0);
+            if (maid.distanceToSqr(owner) < need * need) {
+                return false;
+            }
+            Long cd = COOLDOWN.get(maid.getUUID());
+            if (cd != null && now(maid) < cd) {
+                return false;
+            }
+            REQUEST.put(maid.getUUID(), now(maid));
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** 结束会话的对外入口（战斗行为切回时用） */
+    public static void endSession(EntityMaid maid, String reason) {
+        end(maid, reason);
     }
 
     /* ---------------- 目标点 ---------------- */

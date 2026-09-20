@@ -120,5 +120,8 @@
   "config.promaid.misc.elytraTravelSpell": "Elytra Travel: Use Dash Spells Without Fireworks",
   "config.promaid.misc.elytraTravelAutoEquip": "Elytra Travel: Auto-equip Elytra",
   "config.promaid.misc.elytraTravelMaxSeconds": "Elytra Travel: Max Seconds per Trip",
-  "config.promaid.misc.elytraTravelCooldown": "Elytra Travel: Cooldown after Landing (ticks)"
+  "config.promaid.misc.elytraTravelCooldown": "Elytra Travel: Cooldown after Landing (ticks)",
+  "config.promaid.misc.elytraTravelSpellInterval": "Elytra Travel: Min Interval Between Casts (ticks)",
+  "config.promaid.misc.elytraTravelSpellRespectCooldown": "Elytra Travel: Respect Spell Cooldown",
+  "config.promaid.misc.elytraTravelAirraid": "Air Raid: Elytra Follow When No Enemy"
 }

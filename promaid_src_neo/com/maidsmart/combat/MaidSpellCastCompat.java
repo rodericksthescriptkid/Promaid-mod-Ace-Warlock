@@ -373,9 +373,14 @@ public final class MaidSpellCastCompat {
             if (spell == null) {
                 return 0;
             }
-            Object seconds = mSpellGetCooldown.invoke(spell);
-            if (seconds instanceof Integer i) {
-                return Math.max(0, i) * 20;
+            // 【单位（实测五百八十八 修正）】`AbstractSpell#getSpellCooldown()` 返回的**已经是 tick**：
+            // ISS 源码 `return (int) (SpellConfigManager.getSpellConfigValue(this,
+            // SpellConfigParameter.COOLDOWN_IN_SECONDS) * 20);`——旧版这里又乘了一次 20，
+            // 写回去的冷却整整大 20 倍（烈焰冲锋 10 秒 → 写回 4000 tick = 200 秒，
+            // 于是"提供速度"那类法术一辈子只放得出一记）。这里原样返回。
+            Object ticks = mSpellGetCooldown.invoke(spell);
+            if (ticks instanceof Integer i) {
+                return Math.max(0, i);
             }
             return 0;
         } catch (Throwable ignored) {
@@ -426,6 +431,45 @@ public final class MaidSpellCastCompat {
         } catch (Throwable ignored) {
         }
         return 0;
+    }
+
+    /** 已经报过"认不出这个 id"的法术（避免每 tick 刷屏） */
+    private static final java.util.Set<String> WARNED_IDS = new java.util.HashSet<>();
+
+    /**
+     * v1.2.2 实测五百八十八：把配置里**认不出来**的法术 id 报一次。
+     *
+     * 【为什么需要】id 写错（少个 s、写成 `irons_spellbook:` 少复数、或者装了别的模组但抄了 ISS 的
+     * 名字）时，表现是"这张表里排第一的法术永远不被使用、只有第二个在工作"——极难自查。
+     * 这里在每次挑法术之前顺手校验一遍，认不出的报一条 `[法术兼容]` 日志（同一个 id 只报一次）。
+     */
+    public static void warnUnknownSpellIds(String[] ids) {
+        if (ids == null || !dashAvailable()) {
+            return;
+        }
+        for (String id : ids) {
+            if (id == null || id.isBlank() || WARNED_IDS.contains(id)) {
+                continue;
+            }
+            try {
+                Object spell = mSpellRegistryGetSpell.invoke(null,
+                        net.minecraft.resources.ResourceLocation.parse(id));
+                // 【判定口径（实测五百八十八）】ISS 的 SpellRegistry.getSpell 对未知 id **不返回 null**，
+                // 而是返回共享的 noneSpell（NoneSpell 实例）——所以旧版的 null 判定永远不会触发，
+                // 用户"表里排第一的法术永不生效"也就没有任何提示。改判"解析回来的法术 id 与请求的
+                // id 不一致 = 这个 id 认不出来"。
+                if (spell == null || !id.equals(String.valueOf(mSpellGetId.invoke(spell)))) {
+                    WARNED_IDS.add(id);
+                    com.maidsmart.tool.PromaidLog.log("法术兼容",
+                            "配置里的法术 id 认不出来，已被跳过：" + id
+                                    + "（检查拼写；ISS 的命名空间是 irons_spellbooks:，复数 s）");
+                }
+            } catch (Throwable ignored) {
+                WARNED_IDS.add(id);
+                com.maidsmart.tool.PromaidLog.log("法术兼容",
+                        "配置里的法术 id 认不出来，已被跳过：" + id + "（检查拼写）");
+            }
+        }
     }
 
     /** 位移法术（冲刺/起飞）是否可用 */
