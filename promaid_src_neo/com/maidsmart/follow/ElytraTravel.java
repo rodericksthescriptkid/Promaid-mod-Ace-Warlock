@@ -57,6 +57,35 @@ public final class ElytraTravel {
     /** 到达判定半径（格）：进到这个圈里就算赶到了，收鞘翅交还跟随 */
     public static final double LAND_DISTANCE = 6.0;
 
+    /** 诊断：同理由的限频（UUID → 上次理由 / 上次时间） */
+    private static final Map<UUID, String> LAST_BLOCK_REASON = new HashMap<>();
+    private static final Map<UUID, Long> LAST_BLOCK_AT = new HashMap<>();
+
+    /**
+     * v1.2.2 实测五百八十九【诊断日志】"她该飞却没飞"时把理由记一条。
+     *
+     * 限频：**理由变了立刻记**；理由没变则每 600 tick（30 秒）最多一条——不然一个永远飞不起来的
+     * 女仆（比如没装鞘翅）会把日志刷满。
+     */
+    public static void logBlocked(EntityMaid maid, String tag, String reason) {
+        if (maid == null || reason == null) {
+            return;
+        }
+        try {
+            UUID id = maid.getUUID();
+            long t = now(maid);
+            String last = LAST_BLOCK_REASON.get(id);
+            Long at = LAST_BLOCK_AT.get(id);
+            if (reason.equals(last) && at != null && t - at < 600) {
+                return;
+            }
+            LAST_BLOCK_REASON.put(id, reason);
+            LAST_BLOCK_AT.put(id, t);
+            PromaidLog.log("鞘翅赶路·待机", PromaidLog.nameOf(maid) + " 没起飞：" + tag + " → " + reason);
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static long now(EntityMaid maid) {
         return maid.level().getGameTime();
     }
@@ -150,7 +179,12 @@ public final class ElytraTravel {
                 REQUEST.remove(maid.getUUID());
                 return false;
             }
-            if (!canTravel(maid)) {
+            // 【实测五百八十九】飞行任务里也要认这一路：她在空袭任务、没敌人、主人跑远时，
+            // TLM 的瞬移同样要拦下来改成飞过去（否则她会像用户实测那样"落地后直接传送"）。
+            boolean inFlightTask = MaidFlightKit.isFlightTask(maid);
+            String reason = travelBlockReason(maid, inFlightTask);
+            if (reason != null) {
+                logBlocked(maid, "TLM 要瞬移", reason);
                 return false;
             }
             REQUEST.put(maid.getUUID(), t);
@@ -177,41 +211,77 @@ public final class ElytraTravel {
      *                          不能因为"是飞行任务"就否掉；此时要求她**确实没有敌人**）
      */
     public static boolean canTravel(EntityMaid maid, boolean forIdleFlightTask) {
+        return travelBlockReason(maid, forIdleFlightTask) == null;
+    }
+
+    /**
+     * 她**为什么**不能赶路（null = 可以）。
+     *
+     * 【为什么要返回原因】"她该飞却没飞"是最难自查的一类问题（实测五百八十九：用户复现
+     * 空袭打完没敌人后不跟随，日志里一行都没有）。把判定理由做成可读字符串，就能在日志里
+     * 直接看到是"主人太近 / 缺鞘翅 / 没燃料 / 刚受伤 / 开关关着"里的哪一条。
+     */
+    public static String travelBlockReason(EntityMaid maid, boolean forIdleFlightTask) {
         if (maid == null || !maid.isAlive()) {
-            return false;
+            return "她不在了";
         }
+        try {
+            if (travelBlockReasonInner(maid, forIdleFlightTask) instanceof String s) {
+                return s;
+            }
+            return null;
+        } catch (Throwable ignored) {
+            return "判定异常";
+        }
+    }
+
+    private static String travelBlockReasonInner(EntityMaid maid, boolean forIdleFlightTask) {
         try {
             // 空袭模式自己会飞——只有"空袭待机"那一路允许在飞行任务里赶路
             if (MaidFlightKit.isFlightTask(maid) != forIdleFlightTask) {
-                return false;
+                return forIdleFlightTask ? "她不在空袭任务里" : "她在空袭任务里（那一类由待机跟随负责）";
+            }
+            if (forIdleFlightTask && !MaidSmartConfig.MISC_ELYTRA_TRAVEL_AIRRAID.get()) {
+                return "空袭待机跟随开关关着";
             }
             // 停放/骑乘/睡觉/水/岩浆：不飞（水里滑翔没意义，岩浆是找死）
-            if (maid.isPassenger() || maid.isMaidInSittingPose() || maid.isSleeping()
-                    || maid.isInWater() || maid.isInLava()) {
-                return false;
+            if (maid.isPassenger() || maid.isMaidInSittingPose() || maid.isSleeping()) {
+                return "骑乘/坐姿/睡觉中";
+            }
+            if (maid.isInWater() || maid.isInLava()) {
+                return "在水里/岩浆里";
             }
             // 脑冻结 / 守家：不做跟随，也不赶路
-            if (!maid.canBrainMoving() || maid.isHomeModeEnable()) {
-                return false;
+            if (!maid.canBrainMoving()) {
+                return "脑冻结（干活/被固定）";
+            }
+            if (maid.isHomeModeEnable()) {
+                return "守家模式";
             }
             // 有攻击目标（挨打/追击中）：先打完再说，别背对敌人起飞
             if (hasEnemy(maid)) {
-                return false;
+                return "她还有敌人";
             }
-            // 刚被谁打过（3 秒内）：同理让战斗/自保先处理
-            if (maid.getLastHurtByMob() != null && maid.getLastHurtByMobTimestamp() + 60 > maid.tickCount) {
-                return false;
+            // 刚被谁打过（3 秒内）：同理让战斗/自保先处理。
+            // 【实测五百八十九 放宽】空袭待机那一路**不看这条**——刚打完怪（主人转和平模式，
+            // 怪瞬间消失）时她多半还在"3 秒内被打过"窗口里，拿它当门槛会刚好把这一路卡死。
+            if (!forIdleFlightTask && maid.getLastHurtByMob() != null
+                    && maid.getLastHurtByMobTimestamp() + 60 > maid.tickCount) {
+                return "刚挨过打（3 秒内）";
             }
             // 鞘翅（穿在身上/手上/背包里都算，"穿"这一步由行为负责）
             if (!MaidFlightKit.hasElytra(maid)) {
-                return false;
+                return "没有可用鞘翅";
             }
             // 燃料：烟花（稳）或"提供高度"的位移法术（没烟花的整合包也能用）
             boolean fw = MaidSmartConfig.MISC_ELYTRA_TRAVEL_FIREWORK.get() && MaidFlightKit.hasFirework(maid);
             boolean sp = MaidSmartConfig.MISC_ELYTRA_TRAVEL_SPELL.get() && MaidFlightKit.hasClimbSpell(maid);
-            return fw || sp;
+            if (!fw && !sp) {
+                return "没有燃料（烟花/位移法术都没有）";
+            }
+            return null;
         } catch (Throwable ignored) {
-            return false;
+            return "判定异常";
         }
     }
 
@@ -238,24 +308,44 @@ public final class ElytraTravel {
      * 距离门槛：用 TLM 那套阈值口径（工作范围半径 + 2）与 12 格取大者——主人就在旁边时照旧落地待命。
      */
     public static boolean requestOwnerFollow(EntityMaid maid) {
+        return requestOwnerFollow(maid, false);
+    }
+
+    /**
+     * @param logWhy true = 拒绝时记一条诊断日志（空袭待机那条链路每 tick 都要问，需要能自查）
+     */
+    public static boolean requestOwnerFollow(EntityMaid maid, boolean logWhy) {
         try {
-            if (!MaidSmartConfig.MISC_ELYTRA_TRAVEL.get()
-                    || !MaidSmartConfig.MISC_ELYTRA_TRAVEL_AIRRAID.get()) {
-                return false;
-            }
-            if (!canTravel(maid, true)) {
+            String reason = travelBlockReason(maid, true);
+            if (reason != null) {
+                if (logWhy) {
+                    logBlocked(maid, "空袭待机", reason);
+                }
                 return false;
             }
             LivingEntity owner = maid.getOwner();
             if (owner == null || !owner.isAlive() || maid.level() != owner.level()) {
+                if (logWhy) {
+                    logBlocked(maid, "空袭待机", owner == null ? "找不到主人" : "主人不同维度/不在");
+                }
                 return false;
             }
-            double need = Math.max(12.0, maid.getRestrictRadius() + 2.0);
-            if (maid.distanceToSqr(owner) < need * need) {
+            // 门槛与 TLM 自己的瞬移阈值同口径（工作范围半径 + 2，最低 8 格）：低于它她本来就该
+            // 走路跟着、高过它 TLM 才想瞬移——两边对齐才不会出现"瞬移被拦了、飞又不起飞"的死区。
+            double need = Math.max(8.0, maid.getRestrictRadius() + 2.0);
+            double d2 = maid.distanceToSqr(owner);
+            if (d2 < need * need) {
+                if (logWhy) {
+                    logBlocked(maid, "空袭待机", "主人太近（" + String.format("%.1f", Math.sqrt(d2))
+                            + " < " + (int) need + " 格）");
+                }
                 return false;
             }
             Long cd = COOLDOWN.get(maid.getUUID());
             if (cd != null && now(maid) < cd) {
+                if (logWhy) {
+                    logBlocked(maid, "空袭待机", "落地防抖中（还有 " + (cd - now(maid)) + " tick）");
+                }
                 return false;
             }
             REQUEST.put(maid.getUUID(), now(maid));

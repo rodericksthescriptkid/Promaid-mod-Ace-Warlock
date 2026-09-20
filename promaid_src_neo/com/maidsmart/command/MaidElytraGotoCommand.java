@@ -60,10 +60,13 @@ public final class MaidElytraGotoCommand {
                 src.sendFailure(Component.literal("§c没有找到女仆。"));
                 return 0;
             }
-            if (!ElytraTravel.canTravel(maid)) {
+            // 与行为同口径：她如果挂着空袭任务，按"空袭待机"那一路判定（要求确实没有敌人）
+            boolean inFlightTask = com.maidsmart.combat.MaidFlightKit.isFlightTask(maid);
+            String blocked = ElytraTravel.travelBlockReason(maid, inFlightTask);
+            if (blocked != null) {
                 src.sendFailure(Component.literal("§c" + com.maidsmart.tool.PromaidLog.nameOf(maid)
-                        + " 现在飞不了（需要：可用鞘翅 + 烟花或「提供高度」位移法术，"
-                        + "且不在骑乘/水/岩浆/守家/空袭状态）。"));
+                        + " 现在飞不了：" + blocked
+                        + "（需要：可用鞘翅 + 烟花或「提供高度」位移法术）"));
                 return 0;
             }
             ElytraTravel.setDebugTarget(maid, pos);

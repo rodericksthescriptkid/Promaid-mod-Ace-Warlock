@@ -74,11 +74,25 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
                 return true;
             }
             // 只有被 mixin 挂上请求（= TLM 正要瞬移）时才起飞
-            if (!ElytraTravel.hasFreshRequest(maid)) {
-                return false;
+            if (ElytraTravel.hasFreshRequest(maid)) {
+                // 请求挂起后又掉了鞘翅/燃料（或进了水），请求作废。
+                // 判定口径必须与"请求是怎么来的"一致：她要是在空袭任务里（待机/命令触发），
+                // 就得按待机那一路判定——否则请求挂上又被自己否掉，永远不起飞（实测踩过）。
+                boolean inFlightTask = MaidFlightKit.isFlightTask(maid);
+                String why = ElytraTravel.travelBlockReason(maid, inFlightTask);
+                if (why != null) {
+                    ElytraTravel.logBlocked(maid, "请求已挂起", why);
+                    return false;
+                }
+                return true;
             }
-            // 请求挂起后又掉了鞘翅/燃料（或进了水），请求作废
-            return ElytraTravel.canTravel(maid);
+            // 【实测五百八十九 空袭待机跟随：每 tick 自检，不再依赖战斗行为那一 tick 的接管】
+            // 旧版只在"敌人刚消失的那一 tick"由 MaidFlightCombatBehavior 挂请求——那一刻主人多半
+            // 还在旁边（距离不够），于是没接管成功；战斗行为随后因为没有目标整个停掉，之后再也没人
+            // 尝试 → 用户实测到的"空袭打完，她原地着陆后直接传送"。现在这里每 tick 自检：
+            // 只要她在空袭任务、没敌人、主人跑远了，就自己起飞跟过去（与她切到空闲时同一条路径）。
+            // 拒绝的原因会写进日志（[鞘翅赶路·待机] … 没起飞：空袭待机 → <原因>），便于自查。
+            return ElytraTravel.requestOwnerFollow(maid, true);
         } catch (Throwable ignored) {
             return false;
         }
