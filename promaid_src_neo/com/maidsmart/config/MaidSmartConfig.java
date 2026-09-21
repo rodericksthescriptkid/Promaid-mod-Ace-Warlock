@@ -1977,13 +1977,13 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
         MISC_MAID_SAME_DIM_VERTICAL = BUILDER.comment("Y 轴拉回门槛（格，默认 16）：女仆与主人同维度、水平距离没超上一条阈值但【垂直高度差】超过本值时——若主人旁边 16 格内有安全落点（findStand）就传送过来；没有安全落点则不传（等有落点/再试）。旧版只有 48 格 3D 距离阈值，水平贴身、竖直搭高 30 格的女仆永远不触发（骑到你头顶挂机）；守家/坐姿/骑乘/干活中同样不拉")
                 .translation("config.promaid.misc.maidSameDimVertical").defineInRange("maidSameDimVertical", 16, 4, 128);
         // v1.1.0 实测一百五十一：跟随收紧（参考改版 TLM jar——每 tick 重断言跟随目标）
-        MISC_ELYTRA_TRAVEL = BUILDER.comment("鞘翅赶路（默认开）：非战斗常态下，主人跑远、TLM 正要瞬移时，改成让她穿鞘翅滑翔过去——她本来只有瞬移跟随和搭路，整合包里玩家自己有一堆跨地形手段，观感割裂；空岛型维度（末地外岛、天境之类）尤其明显。\n\n触发口径：只在 TLM 本来就要瞬移的那一刻起飞（离主人 > 工作范围半径 + 2，与她的原版阈值完全一致），所以平地近距离跟随的手感一字不变。\n\n兜底：超时 / 燃料耗尽 / 落水进岩浆 / 撞地形没进展 / 目标丢失 → 立刻收鞘翅并恢复瞬移——宁可瞬移，绝不把她卡在半路。")
-                .translation("config.promaid.misc.elytraTravel").define("elytraTravel", true);
+        MISC_ELYTRA_TRAVEL = BUILDER.comment("鞘翅赶路（**默认关**，可选功能）：非战斗常态下，主人跑远、TLM 正要瞬移时，改成让她穿鞘翅滑翔过去——她本来只有瞬移跟随和搭路，整合包里玩家自己有一堆跨地形手段，观感割裂；空岛型维度（末地外岛、天境之类）尤其明显。\n\n触发口径：只在 TLM 本来就要瞬移的那一刻起飞（离主人 > 工作范围半径 + 2，与她的原版阈值完全一致），所以平地近距离跟随的手感一字不变。\n\n兜底：超时 / 燃料耗尽 / 落水进岩浆 / 撞地形没进展 / 目标丢失 → 立刻收鞘翅并恢复瞬移——宁可瞬移，绝不把她卡在半路。")
+                .translation("config.promaid.misc.elytraTravel").define("elytraTravel", false);
         MISC_ELYTRA_TRAVEL_FIREWORK = BUILDER.comment("鞘翅赶路·用烟花推进（默认开）：放的是无爆炸星的「挂载型」烟花（不会把自己炸伤），消耗玩家给她的真烟花 1 枚；关掉则只靠位移法术推进（没烟花时飞得矮一些）")
                 .translation("config.promaid.misc.elytraTravelFirework").define("elytraTravelFirework", true);
         MISC_ELYTRA_TRAVEL_SPELL = BUILDER.comment("鞘翅赶路·没烟花时用位移法术推进（默认开）：共用空袭的「提供高度」法术表（默认升腾 + 烈焰冲锋），口径同上（不看法术自身冷却）；关掉则没烟花时她只能滑翔下降，赶不了长距离")
                 .translation("config.promaid.misc.elytraTravelSpell").define("elytraTravelSpell", true);
-        MISC_ELYTRA_TRAVEL_AUTO_EQUIP = BUILDER.comment("鞘翅赶路·自动穿鞘翅（默认开）：鞘翅放在背包/手里时自动穿到胸甲槽（滑翔只认胸甲槽的鞘翅）；关掉则要求她已经穿好鞘翅才赶路")
+        MISC_ELYTRA_TRAVEL_AUTO_EQUIP = BUILDER.comment("鞘翅赶路·自动穿鞘翅（默认开，但总开关关着时不生效）：鞘翅放在背包/手里时自动穿到胸甲槽（滑翔只认胸甲槽的鞘翅）；关掉则要求她已经穿好鞘翅才赶路")
                 .translation("config.promaid.misc.elytraTravelAutoEquip").define("elytraTravelAutoEquip", true);
         MISC_ELYTRA_TRAVEL_MAX_SECONDS = BUILDER.comment("鞘翅赶路·单次最长秒数（默认 30）：超时立刻收鞘翅、交还瞬移；调大能追更远的距离，但万一撞地形会多耗一会儿")
                 .translation("config.promaid.misc.elytraTravelMaxSeconds")
@@ -1994,9 +1994,9 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
         MISC_ELYTRA_TRAVEL_SPELL_RESPECT_COOLDOWN = BUILDER.comment("鞘翅赶路·尊重法术自身冷却（默认开）：间隔取 max(上面的间隔, 法术自身冷却)——升腾 15 秒、烈焰冲锋 10 秒。\n\n【与空袭的口径差】空袭的起飞/补高**不**看冷却（那是「贴脸/落地前一口气」，且有空袭位移间隔兜着），但赶路是**长距离巡航**，按法术自己的冷却来才不会被玩家当成永动机（也就不会一直摆施法姿势）。关掉 = 赶路也只看上面的间隔。")
                 .translation("config.promaid.misc.elytraTravelSpellRespectCooldown")
                 .define("elytraTravelSpellRespectCooldown", true);
-        MISC_ELYTRA_TRAVEL_AIRRAID = BUILDER.comment("空袭模式·没敌人时鞘翅跟随（默认开）：空袭任务的女仆附近没有可抵达的敌人时，不再原地滑降站着，而是用鞘翅跟主人飞过去（由「鞘翅赶路」那套逻辑接管；一旦出现敌人立刻结束赶路、切回空袭）。要求她装备齐（鞘翅 + 烟花/位移法术）且主人离她够远，近距离时照旧落地待命。")
+        MISC_ELYTRA_TRAVEL_AIRRAID = BUILDER.comment("空袭模式·没敌人时鞘翅跟随（默认关，需先打开总开关）：空袭任务的女仆附近没有可抵达的敌人时，不再原地滑降站着，而是用鞘翅跟主人飞过去（由「鞘翅赶路」那套逻辑接管；一旦出现敌人立刻结束赶路、切回空袭）。要求她装备齐（鞘翅 + 烟花/位移法术）且主人离她够远，近距离时照旧落地待命。")
                 .translation("config.promaid.misc.elytraTravelAirraid")
-                .define("elytraTravelAirraid", true);
+                .define("elytraTravelAirraid", false);
         MISC_ELYTRA_TRAVEL_NO_DURABILITY = BUILDER.comment("鞘翅赶路·不消耗鞘翅耐久（默认关）：开启后，**只在赶路滑翔期间**跳过鞘翅那「每 20 tick 掉一点」的耐久消耗（原版由 LivingEntity#updateFallFlying 直接扣）。\n\n【为什么默认关】原版每 20 tick 掉一点、耗尽即消失——作者担心「为了一段观赏性飞行去持续养鞘翅」完全在理，所以默认保持原版成本；确实在意耐久（或整合包里已有别的耐久手段）的人可以打开它。关着时若鞘翅飞坏，她也会按既有逻辑自动从背包再拿一件穿上（见 CHANGELOG「鞘翅飞坏/耗尽后自动从背包再拿一件穿上」）。")
                 .translation("config.promaid.misc.elytraTravelNoDurability")
                 .define("elytraTravelNoDurability", false);

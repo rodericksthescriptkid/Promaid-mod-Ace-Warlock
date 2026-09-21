@@ -279,6 +279,11 @@ public final class ElytraTravel {
 
     private static String travelBlockReasonInner(EntityMaid maid, boolean forIdleFlightTask) {
         try {
+            // 总开关（实测五百九十 修：这一条曾经漏在资格判定里——行为自己会拒绝，但命令的校验口径
+            //  必须与行为一致，否则"默认关"时命令还会回一句"开始赶路"，让人以为生效了）
+            if (!MaidSmartConfig.MISC_ELYTRA_TRAVEL.get()) {
+                return "鞘翅赶路开关关着（默认关，可选功能）";
+            }
             // 空袭模式自己会飞——只有"空袭待机"那一路允许在飞行任务里赶路
             if (MaidFlightKit.isFlightTask(maid) != forIdleFlightTask) {
                 return forIdleFlightTask ? "她不在空袭任务里" : "她在空袭任务里（那一类由待机跟随负责）";
