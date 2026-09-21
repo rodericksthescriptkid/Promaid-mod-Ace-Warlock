@@ -92,6 +92,10 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
             // 尝试 → 用户实测到的"空袭打完，她原地着陆后直接传送"。现在这里每 tick 自检：
             // 只要她在空袭任务、没敌人、主人跑远了，就自己起飞跟过去（与她切到空闲时同一条路径）。
             // 拒绝的原因会写进日志（[鞘翅赶路·待机] … 没起飞：空袭待机 → <原因>），便于自查。
+            // 只有挂飞行任务的女仆才走这一路（非空袭女仆的触发是"TLM 要瞬移"那一支）
+            if (!MaidFlightKit.isFlightTask(maid)) {
+                return false;
+            }
             return ElytraTravel.requestOwnerFollow(maid, true);
         } catch (Throwable ignored) {
             return false;
@@ -145,7 +149,8 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
             }
             double dist = maid.position().distanceTo(aim);
             if (dist <= ElytraTravel.LAND_DISTANCE) {
-                bail(maid, "已到主人身边");
+                bail(maid, "已到目的地（距 " + String.format("%.1f", dist) + " 格，目标 "
+                        + String.format("%.0f/%.0f/%.0f", aim.x, aim.y, aim.z) + "）");
                 return;
             }
             // ── 兜底三·五：出现敌人 —— 立刻把飞行交还空袭（别背对敌人赶路） ──
@@ -176,6 +181,8 @@ public class ElytraTravelBehavior extends Behavior<EntityMaid> {
             if (maid.onGround()) {
                 takeOff(maid);
             }
+            // v1.2.2 实测五百九十：可选「赶路不消耗鞘翅耐久」——把损伤值归位到起飞时的数值
+            ElytraTravel.freezeElytraDurability(maid);
             // 必须每 tick 置位：滑翔的操纵杆就是视线，掉出滑翔态她就成自由落体了
             MaidFlightKit.setGliding(maid, true);
             // 推进：烟花优先（一次约 2 秒推力），不在冷却里就用"提供高度"的位移法术续高度。

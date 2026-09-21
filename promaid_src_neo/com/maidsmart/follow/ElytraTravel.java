@@ -92,6 +92,46 @@ public final class ElytraTravel {
 
     /* ---------------- 会话/请求状态 ---------------- */
 
+    /** 赶路开始时胸甲位鞘翅的耐久快照：UUID → 起始损伤值（"不消耗耐久"选项用） */
+    private static final Map<UUID, Integer> DURA_SNAPSHOT = new HashMap<>();
+
+    /**
+     * v1.2.2 实测五百九十【可选：赶路不消耗鞘翅耐久】。
+     *
+     * 开着的会话里，每 tick 把胸甲位鞘翅的损伤值**归位到起飞时的数值**——等价于"这段飞行的磨损
+     * 不算"，但她永远碰不到损坏点（原版每 20 tick 掉一点，归位每 tick 都做，所以到不了上限）。
+     *
+     * 【为什么不用 mixin】最初写的是 {@code @Redirect} 拦 `LivingEntity#updateFallFlying` 里那处
+     * `ItemStack.hurtAndBreak`（javap 实证的位置，语义最精确），但**本地构建没有作者的 mixin refmap**，
+     * 原版类上的注入匹配不到目标 → 服务端直接在启动阶段崩掉（实测）。改动语义完全等价的替代方案后，
+     * 既不依赖 refmap、也不碰任何原版类。
+     *
+     * 副作用（已知并接受）：赶路期间若她胸甲挨了别的损伤，也会被一起归位。飞行途中她要么没敌人、
+     * 要么赶路会立刻收工（tick 里有"出现敌人"兜底），所以这个窗口很小。
+     */
+    public static void freezeElytraDurability(EntityMaid maid) {
+        try {
+            if (maid == null || !MaidSmartConfig.MISC_ELYTRA_TRAVEL_NO_DURABILITY.get()) {
+                return;
+            }
+            net.minecraft.world.item.ItemStack chest =
+                    maid.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
+            if (chest.isEmpty() || !MaidFlightKit.isElytraLike(chest, maid)) {
+                return;
+            }
+            UUID id = maid.getUUID();
+            Integer start = DURA_SNAPSHOT.get(id);
+            if (start == null) {
+                DURA_SNAPSHOT.put(id, chest.getDamageValue());
+                return;
+            }
+            if (chest.getDamageValue() > start) {
+                chest.setDamageValue(start);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     public static boolean isTraveling(EntityMaid maid) {
         return maid != null && SESSION.containsKey(maid.getUUID());
     }
@@ -122,6 +162,7 @@ public final class ElytraTravel {
         UUID id = maid.getUUID();
         REQUEST.remove(id);
         SESSION.put(id, now(maid));
+        DURA_SNAPSHOT.remove(id);   // 耐久快照在"不消耗耐久"选项开启时由 tick 惰性建立
         BEST_DIST.remove(id);
         BEST_AT.remove(id);
     }
@@ -135,6 +176,7 @@ public final class ElytraTravel {
         boolean was = SESSION.remove(id) != null;
         REQUEST.remove(id);
         FIREWORK_READY.remove(id);
+        DURA_SNAPSHOT.remove(id);
         BEST_DIST.remove(id);
         BEST_AT.remove(id);
         int cd = 60;

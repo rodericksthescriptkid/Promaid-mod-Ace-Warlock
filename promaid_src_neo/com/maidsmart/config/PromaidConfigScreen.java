@@ -2882,6 +2882,8 @@ public void render(GuiGraphics g, int index, int top, int left, int width, int h
                 v -> MaidSmartConfig.MISC_ELYTRA_TRAVEL_SPELL_RESPECT_COOLDOWN.set(v), "默认开：间隔取 max(上面的间隔, 法术自身冷却)——升腾/烈焰冲锋按它们自己的冷却来（赶路是长距离巡航，按法术自己的节奏才不会被当成永动机）。关掉 = 只看上面的间隔"));
         this.rows.add(new BoolRow("空袭模式·没敌人时鞘翅跟随", MaidSmartConfig.MISC_ELYTRA_TRAVEL_AIRRAID.get(),
                 v -> MaidSmartConfig.MISC_ELYTRA_TRAVEL_AIRRAID.set(v), "默认开：空袭任务的女仆附近没有可抵达的敌人时，不再原地滑降站着，而是用鞘翅跟主人飞过去（出现敌人立刻切回空袭）。要求装备齐 + 主人离得够远（≥ max(12, 工作范围半径 + 2)）"));
+        this.rows.add(new BoolRow("鞘翅赶路·不消耗鞘翅耐久", MaidSmartConfig.MISC_ELYTRA_TRAVEL_NO_DURABILITY.get(),
+                v -> MaidSmartConfig.MISC_ELYTRA_TRAVEL_NO_DURABILITY.set(v), "默认关（与原版一致）：原版滑翔每 20 tick 扣 1 点耐久、耗尽即消失。开启后只在赶路滑翔期间把胸甲鞘翅的损伤值归位到起飞时的数值——等价于\u201c这段飞行的磨损不算\u201d，玩家自己飞/空袭模式/其它女仆照旧。整合包里已有别的耐久手段、或只想看观赏性飞行时可以打开"));
         this.rows.add(new NumRow("同维度拉回距离（格）", String.valueOf(MaidSmartConfig.MISC_MAID_SAME_DIM_DIST.get()),
                 s -> setInt(MaidSmartConfig.MISC_MAID_SAME_DIM_DIST, s), "女仆与主人同维度且距离超过此值才拉回（默认 48 格）：低于此值靠走路/跟随，不打扰她"));
         // v1.1.0 实测一百八十八：Y 轴拉回门槛（反馈："传送机制不检测 Y 轴"）

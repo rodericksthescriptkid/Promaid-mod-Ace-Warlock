@@ -725,6 +725,8 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
     public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_SPELL_RESPECT_COOLDOWN;
     /** 空袭模式下附近没有可抵达的敌人时，允许继续鞘翅跟随主人（默认开） */
     public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_AIRRAID;
+    /** 赶路期间不消耗鞘翅耐久（默认**关**，与原版一致） */
+    public static final ModConfigSpec.BooleanValue MISC_ELYTRA_TRAVEL_NO_DURABILITY;
     // v1.1.0 实测一百五十二：有增益也喂牛奶（很多装备/饰品带永久增益，旧版"无增益才喝"导致中毒/凋零也不解）
     public static final ModConfigSpec.BooleanValue MISC_MILK_FEED_WITH_BUFF;
     /** v1.1.0 实测八十九：寻路危险方块避让（女仆寻路绕开岩浆/火等） */
@@ -1995,6 +1997,9 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
         MISC_ELYTRA_TRAVEL_AIRRAID = BUILDER.comment("空袭模式·没敌人时鞘翅跟随（默认开）：空袭任务的女仆附近没有可抵达的敌人时，不再原地滑降站着，而是用鞘翅跟主人飞过去（由「鞘翅赶路」那套逻辑接管；一旦出现敌人立刻结束赶路、切回空袭）。要求她装备齐（鞘翅 + 烟花/位移法术）且主人离她够远，近距离时照旧落地待命。")
                 .translation("config.promaid.misc.elytraTravelAirraid")
                 .define("elytraTravelAirraid", true);
+        MISC_ELYTRA_TRAVEL_NO_DURABILITY = BUILDER.comment("鞘翅赶路·不消耗鞘翅耐久（默认关）：开启后，**只在赶路滑翔期间**跳过鞘翅那「每 20 tick 掉一点」的耐久消耗（原版由 LivingEntity#updateFallFlying 直接扣）。\n\n【为什么默认关】原版每 20 tick 掉一点、耗尽即消失——作者担心「为了一段观赏性飞行去持续养鞘翅」完全在理，所以默认保持原版成本；确实在意耐久（或整合包里已有别的耐久手段）的人可以打开它。关着时若鞘翅飞坏，她也会按既有逻辑自动从背包再拿一件穿上（见 CHANGELOG「鞘翅飞坏/耗尽后自动从背包再拿一件穿上」）。")
+                .translation("config.promaid.misc.elytraTravelNoDurability")
+                .define("elytraTravelNoDurability", false);
         MISC_ELYTRA_TRAVEL_COOLDOWN = BUILDER.comment("鞘翅赶路·落地后防抖（tick，默认 60 = 3 秒）：这段时间内不再起飞（刚落地主人又跑开时，先跟着走两步再说），避免频繁起降抖动")
                 .translation("config.promaid.misc.elytraTravelCooldown")
                 .defineInRange("elytraTravelCooldown", 60, 0, 1200);

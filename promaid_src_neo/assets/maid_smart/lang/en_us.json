@@ -123,5 +123,6 @@
   "config.promaid.misc.elytraTravelCooldown": "Elytra Travel: Cooldown after Landing (ticks)",
   "config.promaid.misc.elytraTravelSpellInterval": "Elytra Travel: Min Interval Between Casts (ticks)",
   "config.promaid.misc.elytraTravelSpellRespectCooldown": "Elytra Travel: Respect Spell Cooldown",
-  "config.promaid.misc.elytraTravelAirraid": "Air Raid: Elytra Follow When No Enemy"
+  "config.promaid.misc.elytraTravelAirraid": "Air Raid: Elytra Follow When No Enemy",
+  "config.promaid.misc.elytraTravelNoDurability": "Elytra Travel: Free Durability (No Elytra Wear While Travelling)"
 }

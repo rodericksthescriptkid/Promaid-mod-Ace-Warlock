@@ -257,5 +257,6 @@
   "config.promaid.misc.elytraTravelCooldown": "鞘翅赶路·落地后防抖（tick）",
   "config.promaid.misc.elytraTravelSpellInterval": "鞘翅赶路·施法最小间隔（tick）",
   "config.promaid.misc.elytraTravelSpellRespectCooldown": "鞘翅赶路·尊重法术自身冷却",
-  "config.promaid.misc.elytraTravelAirraid": "空袭模式·没敌人时鞘翅跟随"
+  "config.promaid.misc.elytraTravelAirraid": "空袭模式·没敌人时鞘翅跟随",
+  "config.promaid.misc.elytraTravelNoDurability": "鞘翅赶路·不消耗鞘翅耐久"
 }
