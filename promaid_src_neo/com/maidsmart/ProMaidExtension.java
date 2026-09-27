@@ -373,6 +373,8 @@ net.minecraft.server.MinecraftServer server = event.getServer();
         com.maidsmart.command.MaidGoetyProbeCommand.register(event.getDispatcher());
         // 实测七百〇四：第三种飞行「外部持续推进」（Goety 飞行聚晶：推力由法术给，我们只瞄准）
         com.maidsmart.command.MaidGoetyFlyCommand.register(event.getDispatcher());
+        // 实测 G-6：超越维度（BeyondDimensions）兼容探针（只读：网络通不通、主人网络里有什么）
+        com.maidsmart.command.MaidBdProbeCommand.register(event.getDispatcher());
     }
 
     /**
