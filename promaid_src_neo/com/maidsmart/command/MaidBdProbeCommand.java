@@ -3,6 +3,7 @@ package com.maidsmart.command;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.maidsmart.bd.MaidBdCompat;
 import com.maidsmart.bd.MaidBdDeposit;
+import com.maidsmart.bd.MaidBdOverflow;
 import com.maidsmart.tool.PromaidLog;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
@@ -36,6 +37,7 @@ public final class MaidBdProbeCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         MaidBdDeposit.ensureHooked();
+        MaidBdOverflow.ensureHooked();
         dispatcher.register(Commands.literal("maid_smart")
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("bd_probe")
@@ -94,6 +96,8 @@ public final class MaidBdProbeCommand {
             }
             lines.add("产出回收开关 = " + MaidBdDeposit.isOn(maid)
                     + "（bd_deposit true 打开；bd_deposit_dry 先看名单）");
+            lines.add("溢出容量：" + MaidBdOverflow.capacityReport(maid)
+                    + "（她背包与额外容器都满时，产物会直接入库）");
         }
         for (String s : lines) {
             src.sendSuccess(() -> Component.literal(s), false);
