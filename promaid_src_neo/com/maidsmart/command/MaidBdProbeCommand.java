@@ -2,6 +2,7 @@ package com.maidsmart.command;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.maidsmart.bd.MaidBdCompat;
+import com.maidsmart.bd.MaidBdDeposit;
 import com.maidsmart.tool.PromaidLog;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
@@ -34,12 +35,31 @@ public final class MaidBdProbeCommand {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        MaidBdDeposit.ensureHooked();
         dispatcher.register(Commands.literal("maid_smart")
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("bd_probe")
                         .executes(ctx -> probe(ctx.getSource(), null))
                         .then(Commands.argument("maid", EntityArgument.entities())
                                 .executes(ctx -> probe(ctx.getSource(),
+                                        EntityArgument.getEntities(ctx, "maid").iterator().next()))))
+                .then(Commands.literal("bd_deposit")
+                        .then(Commands.argument("on", com.mojang.brigadier.arguments.BoolArgumentType.bool())
+                                .executes(ctx -> depositOn(ctx.getSource(), null,
+                                        com.mojang.brigadier.arguments.BoolArgumentType.getBool(ctx, "on")))
+                                .then(Commands.argument("maid", EntityArgument.entities())
+                                        .executes(ctx -> depositOn(ctx.getSource(),
+                                                EntityArgument.getEntities(ctx, "maid").iterator().next(),
+                                                com.mojang.brigadier.arguments.BoolArgumentType.getBool(ctx, "on"))))))
+                .then(Commands.literal("bd_deposit_dry")
+                        .executes(ctx -> depositDry(ctx.getSource(), null))
+                        .then(Commands.argument("maid", EntityArgument.entities())
+                                .executes(ctx -> depositDry(ctx.getSource(),
+                                        EntityArgument.getEntities(ctx, "maid").iterator().next()))))
+                .then(Commands.literal("bd_deposit_now")
+                        .executes(ctx -> depositNow(ctx.getSource(), null))
+                        .then(Commands.argument("maid", EntityArgument.entities())
+                                .executes(ctx -> depositNow(ctx.getSource(),
                                         EntityArgument.getEntities(ctx, "maid").iterator().next()))))
                 .then(Commands.literal("bd_query")
                         .then(Commands.argument("item", net.minecraft.commands.arguments.ResourceLocationArgument.id())
@@ -72,6 +92,8 @@ public final class MaidBdProbeCommand {
             for (MaidBdCompat.Line l : MaidBdCompat.contents(net, 12)) {
                 lines.add("  · " + l.id() + " × " + l.amount());
             }
+            lines.add("产出回收开关 = " + MaidBdDeposit.isOn(maid)
+                    + "（bd_deposit true 打开；bd_deposit_dry 先看名单）");
         }
         for (String s : lines) {
             src.sendSuccess(() -> Component.literal(s), false);
@@ -101,6 +123,71 @@ public final class MaidBdProbeCommand {
         String line = "查询 " + itemId + " → " + (n < 0 ? "查询失败" : n + " 个");
         src.sendSuccess(() -> Component.literal(line), false);
         PromaidLog.log("超越维度探针", maid.getName().getString() + " " + line);
+        return 1;
+    }
+
+    /** 开/关"产物回收"（默认关；存 persistentData）。 */
+    private static int depositOn(CommandSourceStack src, net.minecraft.world.entity.Entity picked, boolean on) {
+        EntityMaid maid = asMaid(src, picked);
+        if (maid == null) {
+            src.sendFailure(Component.literal("没找到女仆"));
+            return 0;
+        }
+        MaidBdDeposit.setOn(maid, on);
+        src.sendSuccess(() -> Component.literal("产出回收已" + (on ? "开启" : "关闭")
+                + "（先把产物收进她背包，再自动存进你主网络；bd_deposit_dry 可先看名单）"), true);
+        return 1;
+    }
+
+    /** 只看不搬：列出她背包里"会被回收"的东西。 */
+    private static int depositDry(CommandSourceStack src, net.minecraft.world.entity.Entity picked) {
+        EntityMaid maid = asMaid(src, picked);
+        if (maid == null) {
+            src.sendFailure(Component.literal("没找到女仆"));
+            return 0;
+        }
+        List<String> list = MaidBdDeposit.preview(maid);
+        if (list.isEmpty()) {
+            src.sendSuccess(() -> Component.literal("她背包（可用槽位）里没有东西"), false);
+            return 1;
+        }
+        // 【实测 G-6 修】整份名单拼成一条会被聊天长度截断（无头实测：只显示到第 6 条就没了）。
+        // 所以逐条发；日志照旧一条一条写，方便对账。
+        int moved = 0;
+        for (String s : list) {
+            if (s.contains("→ 会搬")) {
+                moved++;
+            }
+        }
+        final int movedFinal = moved;
+        src.sendSuccess(() -> Component.literal("背包可用槽位 " + list.size() + " 格，其中会被回收 "
+                + movedFinal + " 格（每格判定如下）"), false);
+        for (String s : list) {
+            src.sendSuccess(() -> Component.literal("  " + s), false);
+            PromaidLog.log("超越维度存入", maid.getName().getString() + " dry " + s);
+        }
+        return 1;
+    }
+
+    /** 立刻搬一次（用于验收，不用等自动扫描）。 */
+    private static int depositNow(CommandSourceStack src, net.minecraft.world.entity.Entity picked) {
+        EntityMaid maid = asMaid(src, picked);
+        if (maid == null) {
+            src.sendFailure(Component.literal("没找到女仆"));
+            return 0;
+        }
+        if (!MaidBdCompat.available()) {
+            src.sendFailure(Component.literal("超越维度反射没解析到"));
+            return 0;
+        }
+        Player owner = MaidBdCompat.ownerOf(maid);
+        if (owner == null || !MaidBdCompat.hasAnyNet(owner)) {
+            src.sendFailure(Component.literal("她没有主人，或她主人没有网络"));
+            return 0;
+        }
+        List<String> res = MaidBdDeposit.sweep(maid, MaidBdCompat.primaryNet(owner), false);
+        src.sendSuccess(() -> Component.literal(res.isEmpty() ? "没有可回收的产物"
+                : "本次回收：" + String.join("；", res)), true);
         return 1;
     }
 
