@@ -375,6 +375,8 @@ net.minecraft.server.MinecraftServer server = event.getServer();
         com.maidsmart.command.MaidGoetyFlyCommand.register(event.getDispatcher());
         // 实测 G-6：超越维度（BeyondDimensions）兼容探针（只读：网络通不通、主人网络里有什么）
         com.maidsmart.command.MaidBdProbeCommand.register(event.getDispatcher());
+        // 实测 G-9：超越维度规则名单入口（bd_rule：move/keep/keepN/remove/list）
+        com.maidsmart.command.MaidBdRuleCommand.register(event.getDispatcher());
     }
 
     /**

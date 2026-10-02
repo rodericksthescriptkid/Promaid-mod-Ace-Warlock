@@ -152,6 +152,7 @@ public final class MaidBdDeposit {
         if (inv == null) {
             return out;
         }
+        java.util.Map<net.minecraft.world.item.Item, Long> movedByItem = new java.util.HashMap<>();
         for (int i = 0; i < inv.getSlots(); i++) {
             ItemStack s = inv.getStackInSlot(i);
             if (s == null || s.isEmpty()) {
@@ -159,7 +160,25 @@ public final class MaidBdDeposit {
             }
             String id = com.maidsmart.goety.MaidGoetyCompat.itemId(s);
             String why = verdict(s);
-            out.add("槽" + i + " " + id + " × " + s.getCount() + " → " + (why == null ? "会搬" : "保留（" + why + "）"));
+            if (why != null) {
+                out.add("槽" + i + " " + id + " × " + s.getCount() + " → 保留（" + why + "）");
+                continue;
+            }
+            long cap = MaidBdRules.keepCap(s);
+            long total = MaidBdRules.countIn(inv, s);
+            long moved = movedByItem.getOrDefault(s.getItem(), 0L);
+            long here = Math.max(0, Math.min(s.getCount(), (total - cap) - moved));
+            movedByItem.put(s.getItem(), moved + here);
+            if (here <= 0) {
+                out.add("槽" + i + " " + id + " × " + s.getCount() + " → 保留（保留 N 个：上限 " + cap
+                        + "，她一共 " + total + " 个）");
+            } else if (here < s.getCount()) {
+                out.add("槽" + i + " " + id + " × " + s.getCount() + " → 会搬 " + here + " 个、留 "
+                        + (s.getCount() - here) + " 个（保留 N 个：上限 " + cap + "，她一共 " + total + " 个）");
+            } else {
+                out.add("槽" + i + " " + id + " × " + s.getCount() + " → 会搬"
+                        + (cap > 0 ? "（保留 N 个：上限 " + cap + "，她一共 " + total + " 个）" : ""));
+            }
         }
         return out;
     }
@@ -170,6 +189,13 @@ public final class MaidBdDeposit {
             return "空";
         }
         try {
+            // 【G-9 优先级】玩家写的规则优先于内置名单：一定不搬 > 一定搬
+            if (MaidBdRules.customKeep(s)) {
+                return "自定义【一定不搬】";
+            }
+            if (MaidBdRules.customMove(s)) {
+                return null;
+            }
             if (s.isDamageableItem()) {
                 return "有耐久（工具/护甲）";
             }
@@ -190,6 +216,16 @@ public final class MaidBdDeposit {
                     return "照明要用的";
                 }
             }
+            // 【G-9】明细 id 排在保留标签之前：胡萝卜既是收成又在 c:foods 里，
+            // 先认收成、再由 keepN 决定留几个（否则它会被当成食物永远不搬）。
+            if (id != null) {
+                String full = id.toString();
+                for (String good : GOOD_IDS) {
+                    if (good.equals(full)) {
+                        return null;
+                    }
+                }
+            }
             for (TagKey<Item> t : KEEP_TAGS) {
                 if (s.is(t)) {
                     return "保留标签 " + t.location();
@@ -198,14 +234,6 @@ public final class MaidBdDeposit {
             for (TagKey<Item> t : GOOD_TAGS) {
                 if (s.is(t)) {
                     return null;
-                }
-            }
-            if (id != null) {
-                String full = id.toString();
-                for (String good : GOOD_IDS) {
-                    if (good.equals(full)) {
-                        return null;
-                    }
                 }
             }
             return "未命中白名单";
