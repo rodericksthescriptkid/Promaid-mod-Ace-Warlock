@@ -65,6 +65,12 @@ public final class MaidBdRuleCommand {
                                                         StringArgumentType.getString(ctx, "entry"),
                                                         net.minecraft.commands.arguments.ResourceLocationArgument
                                                                 .getId(ctx, "item").toString())))))
+                        .then(Commands.literal("tags")
+                                .then(Commands.argument("item",
+                                                net.minecraft.commands.arguments.ResourceLocationArgument.id())
+                                        .executes(ctx -> tags(ctx.getSource(),
+                                                net.minecraft.commands.arguments.ResourceLocationArgument
+                                                        .getId(ctx, "item").toString()))))
                         .then(Commands.literal("remove")
                                 .then(Commands.argument("entry", StringArgumentType.greedyString())
                                         .executes(ctx -> say(ctx.getSource(),
@@ -90,6 +96,34 @@ public final class MaidBdRuleCommand {
         String msg = "规则「" + entry + "」" + (hit ? "匹配" : "不匹配") + " " + itemId;
         src.sendSuccess(() -> Component.literal(msg), false);
         PromaidLog.log("超越维度规则", msg);
+        return 1;
+    }
+
+    /**
+     * 列出一个物品**属于哪些物品标签**：{@code /maid_smart bd_rule tags minecraft:oak_log}。
+     *
+     * <p>为什么需要它：{@code tag:} 写法要猜标签名，而公共命名空间（{@code c:*}）与原版
+     * （{@code minecraft:*}）覆盖面不一样——需求方想到的两个用途（"不同种类的石头搭路"、
+     * "不同 mod 的火把照明"）都依赖标签，所以先把"这个物品有哪些标签"摊开给他看，
+     * 比让他猜要省事得多。
+     */
+    private static int tags(CommandSourceStack src, String itemId) {
+        net.minecraft.world.item.ItemStack st = com.maidsmart.bd.MaidBdCompat.stackOf(itemId);
+        if (st.isEmpty()) {
+            src.sendFailure(Component.literal("不认识的物品 id：" + itemId));
+            return 0;
+        }
+        java.util.List<String> list = new java.util.ArrayList<>();
+        try {
+            st.getTags().forEach(t -> list.add(t.location().toString()));
+        } catch (Throwable ignored) {
+        }
+        java.util.Collections.sort(list);
+        src.sendSuccess(() -> Component.literal(itemId + " 属于 " + list.size() + " 个物品标签："), false);
+        for (String s : list) {
+            src.sendSuccess(() -> Component.literal("  tag:" + s), false);
+        }
+        PromaidLog.log("超越维度规则", itemId + " 的标签：" + String.join("，", list));
         return 1;
     }
 
