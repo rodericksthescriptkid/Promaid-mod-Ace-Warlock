@@ -4,6 +4,7 @@ import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.maidsmart.bd.MaidBdCompat;
 import com.maidsmart.bd.MaidBdDeposit;
 import com.maidsmart.bd.MaidBdOverflow;
+import com.maidsmart.bd.MaidBdFlush;
 import com.maidsmart.bd.MaidBdRestock;
 import com.maidsmart.tool.PromaidLog;
 import com.mojang.brigadier.CommandDispatcher;
@@ -40,6 +41,7 @@ public final class MaidBdProbeCommand {
         MaidBdDeposit.ensureHooked();
         MaidBdOverflow.ensureHooked();
         MaidBdRestock.ensureHooked();
+        MaidBdFlush.ensureHooked();
         dispatcher.register(Commands.literal("maid_smart")
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("bd_probe")
@@ -74,6 +76,16 @@ public final class MaidBdProbeCommand {
                         .executes(ctx -> restockNow(ctx.getSource(), null))
                         .then(Commands.argument("maid", EntityArgument.entities())
                                 .executes(ctx -> restockNow(ctx.getSource(),
+                                        EntityArgument.getEntities(ctx, "maid").iterator().next()))))
+                .then(Commands.literal("bd_flush_dry")
+                        .executes(ctx -> flushDry(ctx.getSource(), null))
+                        .then(Commands.argument("maid", EntityArgument.entities())
+                                .executes(ctx -> flushDry(ctx.getSource(),
+                                        EntityArgument.getEntities(ctx, "maid").iterator().next()))))
+                .then(Commands.literal("bd_flush_now")
+                        .executes(ctx -> flushNow(ctx.getSource(), null))
+                        .then(Commands.argument("maid", EntityArgument.entities())
+                                .executes(ctx -> flushNow(ctx.getSource(),
                                         EntityArgument.getEntities(ctx, "maid").iterator().next()))))
                 .then(Commands.literal("bd_query")
                         .then(Commands.argument("item", net.minecraft.commands.arguments.ResourceLocationArgument.id())
@@ -139,6 +151,48 @@ public final class MaidBdProbeCommand {
         String line = "查询 " + itemId + " → " + (n < 0 ? "查询失败" : n + " 个");
         src.sendSuccess(() -> Component.literal(line), false);
         PromaidLog.log("超越维度探针", maid.getName().getString() + " " + line);
+        return 1;
+    }
+
+    /** 只看：她精妙背包（额外容器）里有哪些产物会被冲刷进库。 */
+    private static int flushDry(CommandSourceStack src, net.minecraft.world.entity.Entity picked) {
+        EntityMaid maid = asMaid(src, picked);
+        if (maid == null) {
+            src.sendFailure(Component.literal("没找到女仆"));
+            return 0;
+        }
+        List<String> list = MaidBdFlush.preview(maid);
+        if (list.isEmpty()) {
+            src.sendSuccess(() -> Component.literal("她的额外容器里没有可冲刷的产物"
+                    + "（也可能她根本没戴精妙背包：TLM 只认插在饰品栏里的）"), false);
+            return 1;
+        }
+        for (String s : list) {
+            src.sendSuccess(() -> Component.literal("  " + s), false);
+            PromaidLog.log("超越维度冲刷", maid.getName().getString() + " dry " + s);
+        }
+        return 1;
+    }
+
+    /** 立刻冲刷一次（把精妙背包里的产物推进库）。 */
+    private static int flushNow(CommandSourceStack src, net.minecraft.world.entity.Entity picked) {
+        EntityMaid maid = asMaid(src, picked);
+        if (maid == null) {
+            src.sendFailure(Component.literal("没找到女仆"));
+            return 0;
+        }
+        if (!MaidBdCompat.available()) {
+            src.sendFailure(Component.literal("超越维度反射没解析到"));
+            return 0;
+        }
+        Player owner = MaidBdCompat.ownerOf(maid);
+        if (owner == null || !MaidBdCompat.hasAnyNet(owner)) {
+            src.sendFailure(Component.literal("她没有主人，或她主人没有网络"));
+            return 0;
+        }
+        List<String> res = MaidBdFlush.flush(maid, MaidBdCompat.primaryNet(owner), false);
+        src.sendSuccess(() -> Component.literal(res.isEmpty() ? "没有可冲刷的产物（或她没有额外容器）"
+                : "本轮：" + String.join("；", res)), true);
         return 1;
     }
 
