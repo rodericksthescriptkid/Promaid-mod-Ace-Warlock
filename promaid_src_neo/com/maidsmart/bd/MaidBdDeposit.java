@@ -137,6 +137,24 @@ public final class MaidBdDeposit {
                 + " 产出回收 = " + on);
     }
 
+    /** 内置名单的只读说明（{@code /maid_smart bd_rule builtin} 用）。 */
+    public static List<String> describeBuiltin() {
+        List<String> out = new ArrayList<>();
+        out.add("内置白名单（会搬）——标签：");
+        for (TagKey<Item> t : GOOD_TAGS) {
+            out.add("    tag:" + t.location());
+        }
+        out.add("内置白名单（会搬）——明细：" + String.join("，", GOOD_IDS));
+        out.add("内置保留（不搬）——标签：");
+        for (TagKey<Item> t : KEEP_TAGS) {
+            out.add("    tag:" + t.location());
+        }
+        out.add("内置保留：有耐久的（工具/护甲）、附魔的、改过名的、模组自有（" + String.join("/", KEEP_MODIDS)
+                + "）、火把与灯笼");
+        out.add("想改：用 bd_rule move / keep / keepN / keepAtLeast（你的规则永远优先于内置名单）");
+        return out;
+    }
+
     /** 这一堆该不该搬：白名单命中、且没踩任何一条硬排除。 */
     public static boolean isProduct(ItemStack s) {
         return !s.isEmpty() && verdict(s) == null;
@@ -176,8 +194,9 @@ public final class MaidBdDeposit {
                 out.add("槽" + i + " " + id + " × " + s.getCount() + " → 会搬 " + here + " 个、留 "
                         + (s.getCount() - here) + " 个（保留 N 个：上限 " + cap + "，她一共 " + total + " 个）");
             } else {
-                out.add("槽" + i + " " + id + " × " + s.getCount() + " → 会搬"
-                        + (cap > 0 ? "（保留 N 个：上限 " + cap + "，她一共 " + total + " 个）" : ""));
+                String via = moveVia(s);
+                out.add("槽" + i + " " + id + " × " + s.getCount() + " → 会搬（" + via + "）"
+                        + (cap > 0 ? "；保留 N 个：上限 " + cap + "，她一共 " + total + " 个" : ""));
             }
         }
         return out;
@@ -240,6 +259,37 @@ public final class MaidBdDeposit {
         } catch (Throwable t) {
             return "判定异常";
         }
+    }
+
+    /**
+     * 这一堆**为什么该搬**（判定不透明是需求方实测里最难受的一点：钻石不是他写的规则却照样进库、
+     * 金锭他以为该搬却不动）。返回 null = 不该搬。
+     */
+    public static String moveVia(ItemStack s) {
+        if (s == null || s.isEmpty() || verdict(s) != null) {
+            return null;
+        }
+        try {
+            if (MaidBdRules.customMove(s)) {
+                return "你的自定义规则";
+            }
+            ResourceLocation id = BuiltInRegistries.ITEM.getKey(s.getItem());
+            if (id != null) {
+                String full = id.toString();
+                for (String good : GOOD_IDS) {
+                    if (good.equals(full)) {
+                        return "内置明细 " + full;
+                    }
+                }
+            }
+            for (TagKey<Item> t : GOOD_TAGS) {
+                if (s.is(t)) {
+                    return "内置标签 " + t.location();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "内置名单";
     }
 
     private static IItemHandler backpack(EntityMaid maid) {
@@ -330,6 +380,9 @@ public final class MaidBdDeposit {
             }
             long want = probe.getCount();
             // ② 真插入网络：返回的是**剩余量**，插进去的就是 want - remainder
+            // 【G-13 审计】记下"网络里 X → Y"，让玩家事后能对账（需求方实测里就是缺这个，
+            // 只能凭印象说"应该有 +1 吧"）。
+            long beforeInNet = MaidBdCompat.countOf(net, s);
             long remainder = MaidBdCompat.insert(net, s, want);
             if (remainder < 0) {
                 out.add(id + " × " + want + "（失败：插入调用异常）");
@@ -350,7 +403,9 @@ public final class MaidBdDeposit {
                 out.add(id + " × " + accepted + "（异常：只扣掉 " + really + "，已退回 " + back + "）");
                 continue;
             }
-            out.add(id + " × " + accepted + " → 已存入" + (cap > 0 ? "（保留上限 " + cap + "）" : ""));
+            long afterInNet = MaidBdCompat.countOf(net, s);
+            out.add(id + " × " + accepted + " → 已存入（" + moveVia(s) + "；网络 " + beforeInNet + " → " + afterInNet + "）"
+                    + (cap > 0 ? "（保留上限 " + cap + "）" : ""));
             sweepBudget.put(s.getItem(), already + accepted);
             stacks++;
             movedItems += accepted;

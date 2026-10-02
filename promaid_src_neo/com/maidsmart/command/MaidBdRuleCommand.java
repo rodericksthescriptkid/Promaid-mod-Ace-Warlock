@@ -65,6 +65,8 @@ public final class MaidBdRuleCommand {
                                                         StringArgumentType.getString(ctx, "entry"),
                                                         net.minecraft.commands.arguments.ResourceLocationArgument
                                                                 .getId(ctx, "item").toString())))))
+                        .then(Commands.literal("builtin")
+                                .executes(ctx -> builtin(ctx.getSource())))
                         .then(Commands.literal("tags")
                                 .then(Commands.argument("item",
                                                 net.minecraft.commands.arguments.ResourceLocationArgument.id())
@@ -124,6 +126,18 @@ public final class MaidBdRuleCommand {
             src.sendSuccess(() -> Component.literal("  tag:" + s), false);
         }
         PromaidLog.log("超越维度规则", itemId + " 的标签：" + String.join("，", list));
+        return 1;
+    }
+
+    /**
+     * 列**内置**名单：需求方实测里最困惑的一点是"我没写规则，钻石怎么还是被搬走了"——
+     * 因为内置白名单本来就覆盖挖矿/伐木/收成的原产物（钻石在 {@code c:gems} 里）。
+     * 把内置名单摊开给他看，比让他猜要省事。
+     */
+    private static int builtin(CommandSourceStack src) {
+        for (String s : com.maidsmart.bd.MaidBdDeposit.describeBuiltin()) {
+            src.sendSuccess(() -> Component.literal(s), false);
+        }
         return 1;
     }
 

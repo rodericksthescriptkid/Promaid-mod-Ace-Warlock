@@ -147,11 +147,14 @@ public final class MaidBdFlush {
                 if (dryRun) {
                     ItemStack back = ref.insert(maid, got, false);
                     boolean ok = back == null || back.isEmpty();
-                    out.add(id + " × " + got.getCount() + "（会被冲刷" + (ok ? "" : "；注意：放回失败 " + back.getCount() + " 个") + "）");
+                    out.add(id + " × " + got.getCount() + " → 会被冲刷（" + MaidBdDeposit.moveVia(got)
+                            + (ok ? "" : "；注意：放回失败 " + back.getCount() + " 个") + "）");
                     stacks++;
                     items += got.getCount();
                     continue;
                 }
+                // 【G-13 审计】记下"网络里 X → Y"，事后可对账
+                long beforeInNet = MaidBdCompat.countOf(net, got);
                 long remainder = MaidBdCompat.insert(net, got, got.getCount());
                 if (remainder < 0 || remainder == got.getCount()) {
                     ItemStack back = ref.insert(maid, got, false);
@@ -165,7 +168,9 @@ public final class MaidBdFlush {
                     rest.setCount((int) Math.max(0, remainder));
                     ref.insert(maid, rest, false);
                 }
-                out.add(id + " × " + accepted + " → 从缓存存入");
+                long afterInNet = MaidBdCompat.countOf(net, got);
+                out.add(id + " × " + accepted + " → 从缓存存入（" + MaidBdDeposit.moveVia(got)
+                        + "；网络 " + beforeInNet + " → " + afterInNet + "）");
                 stacks++;
                 items += accepted;
             }
