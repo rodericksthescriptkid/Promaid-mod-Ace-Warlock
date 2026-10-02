@@ -52,6 +52,18 @@ public final class MaidBdFlush {
     private static final long MAX_ITEMS = 4096L;
 
     private static final Map<UUID, Integer> COUNTER = new HashMap<>();
+
+    /**
+     * 【G-14】每只女仆"最近一次自动冲刷"的备忘。
+     *
+     * <p>为什么需要：自动冲刷每 2 秒跑一次，而玩家装备背包、切窗口、敲命令至少要几秒 ⇒
+     * 等玩家敲下 {@code bd_flush_dry} 时缓存早就空了，于是永远看到"没有可冲刷的产物"，
+     * 只能靠网络数量前后对比去猜（需求方实测正是如此：他发现装备后网络从 24 变 49）。
+     */
+    private record LastFlush(long tick, List<String> lines) {
+    }
+
+    private static final Map<UUID, LastFlush> LAST = new HashMap<>();
     private static boolean hooked;
 
     private MaidBdFlush() {
@@ -103,9 +115,21 @@ public final class MaidBdFlush {
         }
     }
 
-    /** 只看：报告额外容器里有哪些产物（实现方式是"取出来再放回去"，日志会写明）。 */
+    /**
+     * 只看：报告额外容器里有哪些产物（实现方式是"取出来再放回去"，日志会写明）。
+     *
+     * <p>如果缓存此刻是空的，就把"最近一次自动冲刷搬走了什么"一并报出来——否则玩家只会
+     * 看到一片空白，无法确认它到底工作过没有。
+     */
     public static List<String> preview(EntityMaid maid) {
-        return flush(maid, null, true);
+        List<String> out = flush(maid, null, true);
+        if (out.isEmpty() && maid != null) {
+            LastFlush last = LAST.get(maid.getUUID());
+            if (last != null) {
+                out.add("（缓存此刻是空的；最近一次自动冲刷搬走了：" + String.join("；", last.lines()) + "）");
+            }
+        }
+        return out;
     }
 
     /**
@@ -177,6 +201,11 @@ public final class MaidBdFlush {
         }
         if (!dryRun && !out.isEmpty()) {
             PromaidLog.log("超越维度冲刷", maid.getName().getString() + " 本轮：" + String.join("；", out));
+            LAST.put(maid.getUUID(), new LastFlush(maid.level().getGameTime(), new ArrayList<>(out)));
+            if (LAST.size() > 64) {
+                long now = maid.level().getGameTime();
+                LAST.entrySet().removeIf(e -> now - e.getValue().tick() > 6000L);   // 5 分钟前的清掉
+            }
         }
         return out;
     }

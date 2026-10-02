@@ -105,6 +105,9 @@ public final class MaidBdDeposit {
     private static final String[] KEEP_MODIDS = {"touhou_little_maid", "promaid"};
 
     private static final Map<UUID, Integer> COUNTER = new HashMap<>();
+
+    /** 【G-14】每只女仆"最近一次自动回收"的备忘：否则玩家敲 dry 时它早跑完了，只看到一片空白。 */
+    private static final Map<UUID, String> LAST_SWEEP = new HashMap<>();
     private static boolean hooked;
 
     private MaidBdDeposit() {
@@ -166,9 +169,13 @@ public final class MaidBdDeposit {
      */
     public static List<String> preview(EntityMaid maid) {
         List<String> out = new ArrayList<>();
+        String lastSweep = maid == null ? null : LAST_SWEEP.get(maid.getUUID());
         IItemHandler inv = backpack(maid);
         if (inv == null) {
-            return out;
+            if (out.isEmpty() && lastSweep != null) {
+            out.add("（她背包里此刻没有可回收的；最近一次自动回收：" + lastSweep + "）");
+        }
+        return out;
         }
         java.util.Map<net.minecraft.world.item.Item, Long> movedByItem = new java.util.HashMap<>();
         for (int i = 0; i < inv.getSlots(); i++) {
@@ -198,6 +205,9 @@ public final class MaidBdDeposit {
                 out.add("槽" + i + " " + id + " × " + s.getCount() + " → 会搬（" + via + "）"
                         + (cap > 0 ? "；保留 N 个：上限 " + cap + "，她一共 " + total + " 个" : ""));
             }
+        }
+        if (out.isEmpty() && lastSweep != null) {
+            out.add("（她背包里此刻没有可回收的；最近一次自动回收：" + lastSweep + "）");
         }
         return out;
     }
@@ -413,9 +423,13 @@ public final class MaidBdDeposit {
         if (!dryRun && (!out.isEmpty() || !keptNotes.isEmpty())) {
             // 每次决策都留痕（含"因保留上限没搬"），否则玩家只看到"东西没动"，
             // 分不清是判定不该搬还是到了上限——上一轮实测就卡在这里。
-            PromaidLog.log("超越维度存入", maid.getName().getString() + " 本轮："
-                    + (out.isEmpty() ? "无入库" : String.join("；", out))
-                    + (keptNotes.isEmpty() ? "" : " ‖ 因保留上限未搬：" + String.join("；", keptNotes)));
+            String summary = (out.isEmpty() ? "无入库" : String.join("；", out))
+                    + (keptNotes.isEmpty() ? "" : " ‖ 因保留上限未搬：" + String.join("；", keptNotes));
+            PromaidLog.log("超越维度存入", maid.getName().getString() + " 本轮：" + summary);
+            LAST_SWEEP.put(maid.getUUID(), summary);
+            if (LAST_SWEEP.size() > 64) {
+                LAST_SWEEP.clear();   // 备忘而已，大了就整体丢掉，不必精细维护
+            }
         }
         return out;
     }
