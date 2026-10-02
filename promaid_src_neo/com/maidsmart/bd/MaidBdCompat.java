@@ -3,6 +3,7 @@ package com.maidsmart.bd;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 import java.lang.reflect.Method;
@@ -280,6 +281,62 @@ public final class MaidBdCompat {
         } catch (Throwable t) {
             return -1;   // -1 = 查询失败（与"0 个"区分开）
         }
+    }
+
+    /** 取出来的一堆东西：栈 + 数量（按标签取时，"是哪种物品"由库里返回）。 */
+    public record Taken(ItemStack stack, long amount) {
+    }
+
+    /** 物品 id → 栈（{@code item:} 前缀可有可无）；认不出来返回空栈。 */
+    public static ItemStack stackOf(String rawId) {
+        try {
+            String s = rawId.startsWith("item:") ? rawId.substring(5) : rawId;
+            ResourceLocation rl = ResourceLocation.tryParse(s);
+            if (rl == null || !net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(rl)) {
+                return ItemStack.EMPTY;
+            }
+            return new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(rl));
+        } catch (Throwable t) {
+            return ItemStack.EMPTY;
+        }
+    }
+
+    /**
+     * 按标签取（"任意一种符合标签的东西"）。库里返回 {@code KeyAmount}，其中的 key 告诉我们
+     * **实际给的是哪一种物品**——所以补货时"用不同种类的石头搭路 / 不同 mod 的火把照明"才成立。
+     */
+    public static Taken extractByTag(Object net, net.minecraft.tags.TagKey<?> tag, long want) {
+        init();
+        if (!ok || net == null || tag == null || want <= 0) {
+            return null;
+        }
+        try {
+            Object ka = mExtractTag.invoke(storageOf(net), tag, want, false);
+            long amount = ((Number) mAmount.invoke(ka)).longValue();
+            if (amount <= 0) {
+                return null;
+            }
+            ItemStack st = readStackOf(mKey.invoke(ka));
+            if (st == null || st.isEmpty()) {
+                return null;
+            }
+            ItemStack copy = st.copy();
+            copy.setCount((int) Math.min(Integer.MAX_VALUE, amount));
+            return new Taken(copy, amount);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static ItemStack readStackOf(Object key) {
+        try {
+            if (key != null && mReadOnlyStack.getDeclaringClass().isInstance(key)) {
+                Object o = mReadOnlyStack.invoke(key);
+                return o instanceof ItemStack s ? s : null;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
     }
 
     /** 真的取出来（{@code simulate=false}）；返回取到的数量，-1 = 失败。 */

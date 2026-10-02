@@ -4,6 +4,7 @@ import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.maidsmart.bd.MaidBdCompat;
 import com.maidsmart.bd.MaidBdDeposit;
 import com.maidsmart.bd.MaidBdOverflow;
+import com.maidsmart.bd.MaidBdRestock;
 import com.maidsmart.tool.PromaidLog;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
@@ -38,6 +39,7 @@ public final class MaidBdProbeCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         MaidBdDeposit.ensureHooked();
         MaidBdOverflow.ensureHooked();
+        MaidBdRestock.ensureHooked();
         dispatcher.register(Commands.literal("maid_smart")
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("bd_probe")
@@ -62,6 +64,16 @@ public final class MaidBdProbeCommand {
                         .executes(ctx -> depositNow(ctx.getSource(), null))
                         .then(Commands.argument("maid", EntityArgument.entities())
                                 .executes(ctx -> depositNow(ctx.getSource(),
+                                        EntityArgument.getEntities(ctx, "maid").iterator().next()))))
+                .then(Commands.literal("bd_restock_dry")
+                        .executes(ctx -> restockDry(ctx.getSource(), null))
+                        .then(Commands.argument("maid", EntityArgument.entities())
+                                .executes(ctx -> restockDry(ctx.getSource(),
+                                        EntityArgument.getEntities(ctx, "maid").iterator().next()))))
+                .then(Commands.literal("bd_restock_now")
+                        .executes(ctx -> restockNow(ctx.getSource(), null))
+                        .then(Commands.argument("maid", EntityArgument.entities())
+                                .executes(ctx -> restockNow(ctx.getSource(),
                                         EntityArgument.getEntities(ctx, "maid").iterator().next()))))
                 .then(Commands.literal("bd_query")
                         .then(Commands.argument("item", net.minecraft.commands.arguments.ResourceLocationArgument.id())
@@ -127,6 +139,42 @@ public final class MaidBdProbeCommand {
         String line = "查询 " + itemId + " → " + (n < 0 ? "查询失败" : n + " 个");
         src.sendSuccess(() -> Component.literal(line), false);
         PromaidLog.log("超越维度探针", maid.getName().getString() + " " + line);
+        return 1;
+    }
+
+    /** 只看不补：报告每条补货规则"她有 / 目标 / 需要补多少"。 */
+    private static int restockDry(CommandSourceStack src, net.minecraft.world.entity.Entity picked) {
+        EntityMaid maid = asMaid(src, picked);
+        if (maid == null) {
+            src.sendFailure(Component.literal("没找到女仆"));
+            return 0;
+        }
+        List<String> list = MaidBdRestock.preview(maid);
+        for (String s : list) {
+            src.sendSuccess(() -> Component.literal("  " + s), false);
+            PromaidLog.log("超越维度补货", maid.getName().getString() + " dry " + s);
+        }
+        return 1;
+    }
+
+    /** 立刻补一次（验收用，不用等自动节奏）。 */
+    private static int restockNow(CommandSourceStack src, net.minecraft.world.entity.Entity picked) {
+        EntityMaid maid = asMaid(src, picked);
+        if (maid == null) {
+            src.sendFailure(Component.literal("没找到女仆"));
+            return 0;
+        }
+        if (!MaidBdCompat.available()) {
+            src.sendFailure(Component.literal("超越维度反射没解析到"));
+            return 0;
+        }
+        Player owner = MaidBdCompat.ownerOf(maid);
+        if (owner == null || !MaidBdCompat.hasAnyNet(owner)) {
+            src.sendFailure(Component.literal("她没有主人，或她主人没有网络"));
+            return 0;
+        }
+        List<String> res = MaidBdRestock.restock(maid, MaidBdCompat.primaryNet(owner), false);
+        src.sendSuccess(() -> Component.literal(res.isEmpty() ? "没有需要补的" : "本轮：" + String.join("；", res)), true);
         return 1;
     }
 

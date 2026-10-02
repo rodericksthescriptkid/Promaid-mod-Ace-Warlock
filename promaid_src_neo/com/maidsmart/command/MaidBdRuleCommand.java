@@ -50,10 +50,47 @@ public final class MaidBdRuleCommand {
                                                 .executes(ctx -> say(ctx.getSource(),
                                                         MaidBdRules.setKeepN(StringArgumentType.getString(ctx, "entry"),
                                                                 IntegerArgumentType.getInteger(ctx, "count")))))))
+                        .then(Commands.literal("keepAtLeast")
+                                .then(Commands.argument("count", IntegerArgumentType.integer(0, 1000000))
+                                        .then(Commands.argument("entry", StringArgumentType.greedyString())
+                                                .executes(ctx -> say(ctx.getSource(),
+                                                        MaidBdRules.addKeepAtLeast(
+                                                                StringArgumentType.getString(ctx, "entry"),
+                                                                IntegerArgumentType.getInteger(ctx, "count")))))))
+                        .then(Commands.literal("test")
+                                .then(Commands.argument("item",
+                                                net.minecraft.commands.arguments.ResourceLocationArgument.id())
+                                        .then(Commands.argument("entry", StringArgumentType.greedyString())
+                                                .executes(ctx -> test(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "entry"),
+                                                        net.minecraft.commands.arguments.ResourceLocationArgument
+                                                                .getId(ctx, "item").toString())))))
                         .then(Commands.literal("remove")
                                 .then(Commands.argument("entry", StringArgumentType.greedyString())
                                         .executes(ctx -> say(ctx.getSource(),
                                                 MaidBdRules.remove(StringArgumentType.getString(ctx, "entry"))))))));
+    }
+
+    /**
+     * 规则写法自测：{@code /maid_smart bd_rule test <物品> <规则写法>}，例如
+     * {@code /maid_smart bd_rule test minecraft:oak_log tag:minecraft:logs} ——回一句"匹配/不匹配"。
+     *
+     * <p>物品在前、规则在后：物品用 {@code ResourceLocationArgument}（专为 {@code minecraft:oak_log}
+     * 这种写法设计），规则那一段用 greedyString，所以带斜杠的标签也能直接敲、不用加引号。
+     * 标签最容易写错（公共命名空间 {@code c:*} 与原版 {@code minecraft:*} 覆盖面不一样），
+     * 有这条就不用靠猜。
+     */
+    private static int test(CommandSourceStack src, String entry, String itemId) {
+        net.minecraft.world.item.ItemStack st = com.maidsmart.bd.MaidBdCompat.stackOf(itemId);
+        if (st.isEmpty()) {
+            src.sendFailure(Component.literal("不认识的物品 id：" + itemId));
+            return 0;
+        }
+        boolean hit = MaidBdRules.matches(st, entry);
+        String msg = "规则「" + entry + "」" + (hit ? "匹配" : "不匹配") + " " + itemId;
+        src.sendSuccess(() -> Component.literal(msg), false);
+        PromaidLog.log("超越维度规则", msg);
+        return 1;
     }
 
     private static int show(CommandSourceStack src) {

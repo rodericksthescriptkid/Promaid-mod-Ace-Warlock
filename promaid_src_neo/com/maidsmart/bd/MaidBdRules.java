@@ -62,13 +62,18 @@ public final class MaidBdRules {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path FILE = Path.of("config", "promaid_bd_rules.json");
 
-    /** 一条保留规则。 */
+    /** 一条保留规则（背包里最多留 N 个，多的搬走）。 */
     public record KeepRule(String match, long keep) {
+    }
+
+    /** 一条补货规则（背包里至少留 N 个，少了从库里取）。 */
+    public record AtLeastRule(String match, long count) {
     }
 
     private static List<String> moveList = new ArrayList<>();
     private static List<String> keepList = new ArrayList<>();
     private static List<KeepRule> keepNList = new ArrayList<>();
+    private static List<AtLeastRule> atLeastList = new ArrayList<>();
     private static boolean loaded;
 
     private MaidBdRules() {
@@ -87,7 +92,8 @@ public final class MaidBdRules {
                     JsonObject o = JsonParser.parseReader(r).getAsJsonObject();
                     moveList = readStrings(o, "move");
                     keepList = readStrings(o, "keep");
-                    keepNList = readKeepN(o);
+                    keepNList = readKeepN(o, "keepN");
+                    atLeastList = readAtLeast(o);
                 }
             } else {
                 // 首次生成默认规则：胡萝卜/土豆/甜菜根各留 16（够补种），其余照内置名单走
@@ -116,10 +122,10 @@ public final class MaidBdRules {
         return out;
     }
 
-    private static List<KeepRule> readKeepN(JsonObject o) {
+    private static List<KeepRule> readKeepN(JsonObject o, String key) {
         List<KeepRule> out = new ArrayList<>();
         try {
-            JsonElement e = o.get("keepN");
+            JsonElement e = o.get(key);
             if (e != null && e.isJsonArray()) {
                 for (JsonElement x : e.getAsJsonArray()) {
                     if (!x.isJsonObject()) {
@@ -127,6 +133,25 @@ public final class MaidBdRules {
                     }
                     JsonObject r = x.getAsJsonObject();
                     out.add(new KeepRule(r.get("match").getAsString(), r.get("keep").getAsLong()));
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return out;
+    }
+
+    /** 读 keepAtLeast（默认空：由玩家自己写。需求方口径："默认配置为空"）。 */
+    private static List<AtLeastRule> readAtLeast(JsonObject o) {
+        List<AtLeastRule> out = new ArrayList<>();
+        try {
+            JsonElement e = o.get("keepAtLeast");
+            if (e != null && e.isJsonArray()) {
+                for (JsonElement x : e.getAsJsonArray()) {
+                    if (!x.isJsonObject()) {
+                        continue;
+                    }
+                    JsonObject r = x.getAsJsonObject();
+                    out.add(new AtLeastRule(r.get("match").getAsString(), r.get("count").getAsLong()));
                 }
             }
         } catch (Throwable ignored) {
@@ -149,9 +174,17 @@ public final class MaidBdRules {
                 e.addProperty("keep", r.keep());
                 kn.add(e);
             }
+            JsonArray al = new JsonArray();
+            for (AtLeastRule r : atLeastList) {
+                JsonObject e = new JsonObject();
+                e.addProperty("match", r.match());
+                e.addProperty("count", r.count());
+                al.add(e);
+            }
             o.add("move", m);
             o.add("keep", k);
             o.add("keepN", kn);
+            o.add("keepAtLeast", al);
             try (Writer w = Files.newBufferedWriter(FILE, StandardCharsets.UTF_8)) {
                 GSON.toJson(o, w);
             }
@@ -190,13 +223,27 @@ public final class MaidBdRules {
         return "已设置【保留 N 个】：" + entry + " → " + Math.max(0, n) + "（超出部分会被搬走）";
     }
 
+    public static synchronized String addKeepAtLeast(String entry, long n) {
+        ensureLoaded();
+        atLeastList.removeIf(r -> r.match().equals(entry));
+        atLeastList.add(new AtLeastRule(entry, Math.max(0, n)));
+        save();
+        return "已设置【至少留 N 个】：" + entry + " → " + Math.max(0, n) + "（少了会从主网络取）";
+    }
+
+    public static synchronized List<AtLeastRule> atLeastRules() {
+        ensureLoaded();
+        return new ArrayList<>(atLeastList);
+    }
+
     public static synchronized String remove(String entry) {
         ensureLoaded();
         boolean a = moveList.removeIf(entry::equals);
         boolean b = keepList.removeIf(entry::equals);
         boolean c = keepNList.removeIf(r -> r.match().equals(entry));
+        boolean d = atLeastList.removeIf(r -> r.match().equals(entry));
         save();
-        return (a || b || c) ? "已删除规则：" + entry : "没有这条规则：" + entry;
+        return (a || b || c || d) ? "已删除规则：" + entry : "没有这条规则：" + entry;
     }
 
     public static synchronized List<String> describe() {
@@ -210,6 +257,13 @@ public final class MaidBdRules {
         } else {
             for (KeepRule r : keepNList) {
                 out.add("保留 N 个：" + r.match() + " → 最多留 " + r.keep() + " 个");
+            }
+        }
+        if (atLeastList.isEmpty()) {
+            out.add("至少留 N 个（自动补货）：（空，由你自己写）");
+        } else {
+            for (AtLeastRule r : atLeastList) {
+                out.add("至少留 N 个（自动补货）：" + r.match() + " → 少于 " + r.count() + " 个就从主网络取");
             }
         }
         return out;
@@ -287,6 +341,21 @@ public final class MaidBdRules {
         for (int i = 0; i < inv.getSlots(); i++) {
             ItemStack s = inv.getStackInSlot(i);
             if (s != null && !s.isEmpty() && s.getItem() == ref.getItem()) {
+                n += s.getCount();
+            }
+        }
+        return n;
+    }
+
+    /** 她背包里符合这条写法的物品总数（裸 id / item: / tag: 都支持）。 */
+    public static long countMatching(net.neoforged.neoforge.items.IItemHandler inv, String entry) {
+        if (inv == null || entry == null || entry.isEmpty()) {
+            return 0;
+        }
+        long n = 0;
+        for (int i = 0; i < inv.getSlots(); i++) {
+            ItemStack s = inv.getStackInSlot(i);
+            if (s != null && !s.isEmpty() && matches(s, entry)) {
                 n += s.getCount();
             }
         }
