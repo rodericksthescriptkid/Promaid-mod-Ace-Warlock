@@ -291,6 +291,10 @@ public final class MaidBdDeposit {
         }
         int stacks = 0;
         long movedItems = 0;
+        // 【G-10】保留 N 个的预算：按**具体物品种类**在本轮内累计，避免跨槽位搬多。
+        // 之前这里漏了（dry-run 有、真正搬运没有），实机表现就是"预览说留 16、实际一个不留"。
+        final java.util.Map<net.minecraft.world.item.Item, Long> sweepBudget = new java.util.HashMap<>();
+        final java.util.List<String> keptNotes = new java.util.ArrayList<>();
         for (int i = 0; i < inv.getSlots(); i++) {
             if (stacks >= MAX_STACKS_PER_SWEEP || movedItems >= MAX_ITEMS_PER_SWEEP) {
                 break;
@@ -300,14 +304,27 @@ public final class MaidBdDeposit {
                 continue;
             }
             String id = com.maidsmart.goety.MaidGoetyCompat.itemId(s);
+            // 【保留 N 个】只搬"超出上限"的那部分
+            long cap = MaidBdRules.keepCap(s);
+            long allow = Math.max(0, MaidBdRules.countIn(inv, s) - cap);
+            long already = sweepBudget.getOrDefault(s.getItem(), 0L);
+            long canMove = Math.max(0, Math.min(s.getCount(), allow - already));
+            if (canMove <= 0) {
+                if (cap > 0) {
+                    keptNotes.add(id + " × " + s.getCount() + " 保留（上限 " + cap + "，她一共 "
+                            + MaidBdRules.countIn(inv, s) + " 个）");
+                }
+                continue;
+            }
             if (dryRun) {
-                out.add(id + " × " + s.getCount() + "（会不会搬：会）");
+                out.add(id + " × " + canMove + "（会不会搬：会" + (cap > 0 ? "，保留上限 " + cap : "") + "）");
+                sweepBudget.put(s.getItem(), already + canMove);
                 stacks++;
-                movedItems += s.getCount();
+                movedItems += canMove;
                 continue;
             }
             // ① 模拟取出：确认背包这一格真的能拿出这么多（改完还得放回去，所以用 simulate）
-            ItemStack probe = inv.extractItem(i, s.getCount(), true);
+            ItemStack probe = inv.extractItem(i, (int) canMove, true);
             if (probe.isEmpty()) {
                 continue;
             }
@@ -333,13 +350,17 @@ public final class MaidBdDeposit {
                 out.add(id + " × " + accepted + "（异常：只扣掉 " + really + "，已退回 " + back + "）");
                 continue;
             }
-            out.add(id + " × " + accepted + " → 已存入");
+            out.add(id + " × " + accepted + " → 已存入" + (cap > 0 ? "（保留上限 " + cap + "）" : ""));
+            sweepBudget.put(s.getItem(), already + accepted);
             stacks++;
             movedItems += accepted;
         }
-        if (!dryRun && !out.isEmpty()) {
-            PromaidLog.log("超越维度存入", maid.getName().getString() + " 回收 " + out.size() + " 项："
-                    + String.join("；", out));
+        if (!dryRun && (!out.isEmpty() || !keptNotes.isEmpty())) {
+            // 每次决策都留痕（含"因保留上限没搬"），否则玩家只看到"东西没动"，
+            // 分不清是判定不该搬还是到了上限——上一轮实测就卡在这里。
+            PromaidLog.log("超越维度存入", maid.getName().getString() + " 本轮："
+                    + (out.isEmpty() ? "无入库" : String.join("；", out))
+                    + (keptNotes.isEmpty() ? "" : " ‖ 因保留上限未搬：" + String.join("；", keptNotes)));
         }
         return out;
     }
