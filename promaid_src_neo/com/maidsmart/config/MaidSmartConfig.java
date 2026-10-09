@@ -1006,6 +1006,8 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
     public static final ModConfigSpec.BooleanValue MISC_FREE_FLIGHT_IDLE;
     /** 主人静止多少秒后落地待命（默认 3） */
     public static final ModConfigSpec.IntValue MISC_FREE_FLIGHT_IDLE_SECONDS;
+    /** 空袭接敌结束后，创造飞行重新接管前等待的秒数（默认 3） */
+    public static final ModConfigSpec.IntValue MISC_FREE_FLIGHT_AIRSTRIKE_COOLDOWN_SECONDS;
     /** 落地待命的贴近距离（格，默认 2）——交互（喂食/摸头）需要她在 3 格内 */
     public static final ModConfigSpec.IntValue MISC_FREE_FLIGHT_NEAR_DIST;
     /** 【实测六百八十八】仿创造飞行·走路的活也交给飞（默认开）：够远 / 要上下的走位改成飞过去 */
@@ -2589,6 +2591,9 @@ public static final ModConfigSpec.BooleanValue MISC_DIMENSION_FOLLOW;
         MISC_FREE_FLIGHT_IDLE_SECONDS = BUILDER.comment("仿创造飞行·主人静止多久后落地待命（秒，默认 3）：主人的水平移动速度低于阈值并持续这么久 → 软着陆；期间主人一动就取消。")
                 .translation("config.promaid.misc.freeFlightIdleSeconds")
                 .defineInRange("freeFlightIdleSeconds", 3, 1, 30);
+        MISC_FREE_FLIGHT_AIRSTRIKE_COOLDOWN_SECONDS = BUILDER.comment("仿创造飞行·空袭接敌结束后等待多久再接管（秒，默认 3，0=立即）：战斗动作与目标都结束后，等待这段时间再恢复创造飞行跟随，避免两套飞行控制来回切换。")
+                .translation("config.promaid.misc.freeFlightAirstrikeCooldownSeconds")
+                .defineInRange("freeFlightAirstrikeCooldownSeconds", 3, 0, 10);
         MISC_FREE_FLIGHT_NEAR_DIST = BUILDER.comment("仿创造飞行·落地待命的贴近距离（格，默认 2）：软着陆时机头对着主人漂过去，最终停在他身边这个距离内——留 1 格余量给原版 3 格交互距离。")
                 .translation("config.promaid.misc.freeFlightNearDist")
                 .defineInRange("freeFlightNearDist", 2, 1, 6);

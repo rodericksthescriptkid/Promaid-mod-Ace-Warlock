@@ -3612,6 +3612,8 @@ public void render(GuiGraphics g, int index, int top, int left, int width, int h
                 v -> MaidSmartConfig.MISC_FREE_FLIGHT_IDLE.set(v), "默认开：主人停下不动满下面的秒数后，她软着陆到你脚边站好（同高度、约 2 格），你再一动她自动重新起飞。原来的行为是「够资格就一直悬在你身后 3.5 格 + 高 2 格」，而原版实体交互距离只有 3 格——喂金苹果/药水、摸头/抱抱都会够不到。关掉 = 始终悬停（旧行为）"));
         this.rows.add(new NumRow("仿创造飞行·静止多久落地（秒）", String.valueOf(MaidSmartConfig.MISC_FREE_FLIGHT_IDLE_SECONDS.get()),
                 s -> setInt(MaidSmartConfig.MISC_FREE_FLIGHT_IDLE_SECONDS, s), "默认 3 秒：主人的水平移动速度低于阈值并持续这么久 → 软着陆；期间主人一动就取消"));
+        this.rows.add(new NumRow("仿创造飞行·空袭结束后等待（秒）", String.valueOf(MaidSmartConfig.MISC_FREE_FLIGHT_AIRSTRIKE_COOLDOWN_SECONDS.get()),
+                s -> setInt(MaidSmartConfig.MISC_FREE_FLIGHT_AIRSTRIKE_COOLDOWN_SECONDS, s), "默认 3 秒，0 = 立即：空袭接敌/出手结束后等待多久再恢复创造飞行跟随，避免两套飞行控制切换过快"));
         this.rows.add(new NumRow("仿创造飞行·落地贴近距离（格）", String.valueOf(MaidSmartConfig.MISC_FREE_FLIGHT_NEAR_DIST.get()),
                 s -> setInt(MaidSmartConfig.MISC_FREE_FLIGHT_NEAR_DIST, s), "默认 2 格：软着陆时朝主人漂过去，最终停在他身边这个距离内（留 1 格余量给原版 3 格交互距离）"));
         this.rows.add(new BoolRow("仿创造飞行·走路的活也交给飞", MaidSmartConfig.MISC_FREE_FLIGHT_TRAVEL.get(),

@@ -41,6 +41,8 @@ public final class MaidFreeFlightController {
 
     /** 软着陆相位（UUID → 开始时刻） */
     private static final Map<UUID, Long> SOFT_LAND_START = new HashMap<>();
+    /** 空袭最近一次接敌时刻，用于切换冷却 */
+    private static final Map<UUID, Long> AIRSTRIKE_ACTIVE_AT = new HashMap<>();
     /** 调试目标（/maid_smart freeflight_goto）：UUID → 坐标 */
     private static final Map<UUID, Vec3> DEBUG_TARGET = new HashMap<>();
 
@@ -164,13 +166,82 @@ public final class MaidFreeFlightController {
             if (!maid.canBrainMoving() || maid.isHomeModeEnable()) {
                 return true;   // 守家：不把她从家里吊出去
             }
-            if (com.maidsmart.combat.MaidFlightKit.isFlightTask(maid)) {
-                return true;   // 空袭/远战自己管飞行
+            if (airstrikeOwnsFlight(maid)) {
+                return true;   // 空袭接敌/出手及其短暂收尾窗口内由空袭接管
             }
             return com.maidsmart.combat.MaidBroomKit.isBroomTask(maid);
         } catch (Throwable ignored) {
             return true;
         }
+    }
+
+    private static boolean airstrikeCombatActive(EntityMaid maid) {
+        if (!com.maidsmart.combat.MaidFlightKit.isFlightTask(maid)) {
+            return false;
+        }
+        try {
+            if (com.maidsmart.combat.MaidFlightCombatBehavior.isEngaged(maid)) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return combatTarget(maid) != null;
+    }
+
+    private static boolean airstrikeOwnsFlight(EntityMaid maid) {
+        if (!com.maidsmart.combat.MaidFlightKit.isFlightTask(maid)) {
+            AIRSTRIKE_ACTIVE_AT.remove(maid.getUUID());
+            return false;
+        }
+        UUID id = maid.getUUID();
+        long now = maid.level().getGameTime();
+        if (airstrikeCombatActive(maid)) {
+            AIRSTRIKE_ACTIVE_AT.put(id, now);
+            return true;
+        }
+        Long lastActive = AIRSTRIKE_ACTIVE_AT.get(id);
+        if (lastActive == null) {
+            return false;
+        }
+        long cooldown = (long) airstrikeCooldownSeconds() * 20L;
+        if (now - lastActive < cooldown) {
+            return true;
+        }
+        AIRSTRIKE_ACTIVE_AT.remove(id);
+        return false;
+    }
+
+    private static int airstrikeCooldownSeconds() {
+        try {
+            return Math.max(0, com.maidsmart.config.MaidSmartConfig.MISC_FREE_FLIGHT_AIRSTRIKE_COOLDOWN_SECONDS.get());
+        } catch (Throwable ignored) {
+            return 3;
+        }
+    }
+
+    /** 将移动控制权交给空袭，不启动软着陆，也不清除空袭需要的惯性与坠落距离。 */
+    private static void handOffToAirstrike(EntityMaid maid) {
+        UUID id = maid.getUUID();
+        STATE.remove(id);
+        LAND_GOAL.remove(id);
+        SOFT_LAND_START.remove(id);
+        OWNER_LAST.remove(id);
+        OWNER_STILL.remove(id);
+        STANDBY_SINCE.remove(id);
+        NO_LAND_LAST.remove(id);
+        NO_LAND_AT.remove(id);
+        FAST_LOGGED.remove(id);
+        YAW.remove(id);
+        RETREAT.remove(id);
+        DEBUG_TARGET.remove(id);
+        TRAVEL.remove(id);
+        TRAVEL_FLIGHT.remove(id);
+        TRAVEL_LOGGED.remove(id);
+        SUB_OWNER.remove(maid);
+        markAirborne(maid, false);
+        maid.setNoGravity(false);
+        PromaidLog.log("仿创造飞行", PromaidLog.nameOf(maid)
+                + " 交还移动控制（空袭接敌；保留当前速度与坠落距离）");
     }
 
     /* ---------------- 实测六百八十八：本来要走过去的活，交给飞 ---------------- */
@@ -542,6 +613,7 @@ public final class MaidFreeFlightController {
                 NO_LAND_LAST.remove(id);
                 NO_LAND_AT.remove(id);
                 FAST_LOGGED.remove(id);
+                AIRSTRIKE_ACTIVE_AT.remove(id);
                 YAW.remove(id);
                 RETREAT.remove(id);
                 DEBUG_TARGET.remove(id);
@@ -625,6 +697,13 @@ public final class MaidFreeFlightController {
             }
             touch(id, maid);
             int st = STATE.getOrDefault(id, ST_OFF);
+            if (airstrikeCombatActive(maid)) {
+                AIRSTRIKE_ACTIVE_AT.put(id, maid.level().getGameTime());
+                if (st == ST_FLYING || st == ST_SOFT_LAND || st == ST_STANDBY) {
+                    handOffToAirstrike(maid);
+                    return;
+                }
+            }
             LivingEntity owner = resolveOwner(maid);
             boolean ownerHere = owner != null && owner.isAlive() && maid.level() == owner.level();
             boolean allowed = canFly(maid);
@@ -1171,6 +1250,7 @@ public final class MaidFreeFlightController {
             TRAVEL.remove(id);
             TRAVEL_FLIGHT.remove(id);
             TRAVEL_LOGGED.remove(id);
+            AIRSTRIKE_ACTIVE_AT.remove(id);
             SUB_OWNER.remove(maid);
             markAirborne(maid, false);
             maid.setNoGravity(false);
@@ -1200,6 +1280,7 @@ public final class MaidFreeFlightController {
             TRAVEL.remove(id);
             TRAVEL_FLIGHT.remove(id);
             TRAVEL_LOGGED.remove(id);
+            AIRSTRIKE_ACTIVE_AT.remove(id);
             markAirborne(maid, false);
             if (maid.isAlive()) {
                 maid.setNoGravity(false);
